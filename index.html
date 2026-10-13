@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NAGeo Estimate Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: left column walks the salesman through 3 steps; right column is the live estimate, sticky on wide screens. */
+  :root{
+    --bg:#EDF1EE; --card:#FFFFFF; --ink:#16211D; --ink2:#44554E; --faint:#5D6E67;
+    --line:#D3DDD8; --primary:#0B5D5A; --primary-ink:#FFFFFF; --primary-soft:#D9ECE9;
+    --warm:#B4531A; --warn-bg:#FBEBDD; --good:#1F7A4D;
+    --shadow:0 1px 2px rgba(22,33,29,.06),0 10px 24px -14px rgba(22,33,29,.25);
+    --font:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --display:'Bricolage Grotesque','Atkinson Hyperlegible',system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1613; --card:#17211D; --ink:#E9F1ED; --ink2:#B2C3BB; --faint:#8EA19A;
+      --line:#2A3832; --primary:#4CC3B8; --primary-ink:#06201D; --primary-soft:#173A36;
+      --warm:#E58A4B; --warn-bg:#35261A; --good:#58C48C;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 24px -14px rgba(0,0,0,.6);
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F1613; --card:#17211D; --ink:#E9F1ED; --ink2:#B2C3BB; --faint:#8EA19A;
+    --line:#2A3832; --primary:#4CC3B8; --primary-ink:#06201D; --primary-soft:#173A36;
+    --warm:#E58A4B; --warn-bg:#35261A; --good:#58C48C;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 24px -14px rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:light dark}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.45;padding-inline:16px;padding-block:0}
+  .wrap{max-width:1180px;margin:0 auto;padding-block:18px 56px}
+  h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+  button{font-family:inherit;font-size:inherit;color:inherit}
+  .num{font-variant-numeric:tabular-nums}
+  :focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+
+  /* top bar */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;margin-bottom:18px}
+  .brand{display:flex;flex-direction:column}
+  .brand .co{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .brand h1{font-size:30px;font-weight:700}
+  .rate{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 14px;min-width:0}
+  .rate span{color:var(--ink2);font-size:15px}
+  .rate b{font-size:17px}
+  .linkbtn{appearance:none;border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:8px 12px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .linkbtn:hover{border-color:var(--primary)}
+
+  .settings{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .settings .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:12px}
+  .settings .hint{margin:10px 0 0}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:20px;align-items:start}
+  @media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+  .col-right{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+  @media (max-width:900px){.col-right{position:static}}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
+  .card + .card{margin-top:16px}
+  .step-h{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .step-n{flex:none;width:34px;height:34px;border-radius:50%;background:var(--primary);color:var(--primary-ink);display:grid;place-items:center;font-family:var(--display);font-weight:700}
+  .step-h h2{font-size:23px}
+  .sub{color:var(--ink2);font-size:15px;margin:0 0 12px}
+  .hint{color:var(--faint);font-size:14px;margin:6px 0 0}
+
+  label.lbl{display:block;font-weight:700;font-size:15px;color:var(--ink2);margin:0 0 6px}
+  input[type=text],input[type=number],textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:11px 12px;min-height:50px}
+  textarea{min-height:110px;resize:vertical}
+  input:focus,textarea:focus{outline:none;border-color:var(--primary)}
+  .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
+  .money{position:relative}
+  .money i{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-style:normal;color:var(--faint)}
+  .money input{padding-left:28px}
+
+  /* big choice buttons */
+  .choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .choice{appearance:none;text-align:left;cursor:pointer;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:14px 16px;min-height:64px;display:flex;flex-direction:column;gap:2px}
+  .choice b{font-size:20px;font-family:var(--display)}
+  .choice span{font-size:14px;color:var(--ink2)}
+  .choice:hover{border-color:var(--primary)}
+  .choice[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:var(--primary-ink)}
+  .choice[aria-pressed="true"] span{color:var(--primary-ink);opacity:.9}
+
+  .locked{opacity:.45;pointer-events:none}
+  .lockmsg{background:var(--warn-bg);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-weight:700;font-size:15px}
+
+  /* unit picker */
+  .series{margin-top:18px}
+  .series:first-child{margin-top:0}
+  .series h3{font-size:20px;margin-bottom:8px}
+  .kindrow{display:flex;align-items:flex-start;gap:12px;margin-top:8px;flex-wrap:wrap}
+  .kindrow .kn{flex:0 0 112px;font-weight:700;color:var(--ink2);padding-top:14px}
+  .ubtns{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 220px;min-width:0}
+  .ubtn{appearance:none;cursor:pointer;min-width:84px;min-height:54px;padding:8px 14px;background:var(--card);border:2px solid var(--primary);color:var(--primary);border-radius:12px;font-weight:700;font-size:18px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .ubtn:hover{background:var(--primary-soft)}
+  .ubtn:active{transform:translateY(1px)}
+  .ubtn .plus{color:var(--warm);font-size:22px;line-height:1}
+
+  /* estimate */
+  .est h2{font-size:23px;margin-bottom:10px}
+  .empty{border:2px dashed var(--line);border-radius:14px;padding:22px 16px;text-align:center;color:var(--ink2)}
+  .line{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--bg)}
+  .line.fresh{animation:pop .5s ease}
+  @keyframes pop{from{background:var(--primary-soft);transform:scale(.98)}to{background:var(--bg);transform:none}}
+  @media (prefers-reduced-motion:reduce){.line.fresh{animation:none}}
+  .lt{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .ln{font-weight:700;font-size:18px;min-width:0}
+  .ls{font-size:14px;color:var(--ink2)}
+  .lp{font-family:var(--display);font-weight:700;font-size:21px;white-space:nowrap}
+  .lopts{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;margin-top:8px;font-size:14px;color:var(--ink2)}
+  .lopts label{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+  input[type=checkbox]{width:22px;height:22px;accent-color:var(--primary);flex:none}
+  .rm{appearance:none;cursor:pointer;background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-weight:700;color:var(--warm);min-height:36px}
+  .rm:hover{border-color:var(--warm)}
+  .addons{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .addons h3{font-size:17px;margin-bottom:6px}
+  .addrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .addrow:last-child{border-bottom:none}
+  .addrow label{display:flex;align-items:center;gap:10px;cursor:pointer;min-width:0}
+  .addrow .ap{font-weight:700;white-space:nowrap}
+  .total{margin-top:14px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;background:var(--primary);color:var(--primary-ink);border-radius:14px;padding:14px 16px}
+  .total span{font-weight:700}
+  .total b{font-family:var(--display);font-size:34px}
+
+  /* lease */
+  .lease h2{font-size:23px;margin-bottom:4px}
+  .seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}
+  @media (max-width:420px){.seg{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .seg button{appearance:none;cursor:pointer;min-height:48px;background:var(--card);border:2px solid var(--line);border-radius:10px;font-weight:700}
+  .seg button[aria-pressed="true"]{background:var(--primary-soft);border-color:var(--primary);color:var(--ink)}
+  .hero{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px;margin-top:8px}
+  .hero b{font-family:var(--display);font-size:44px;line-height:1}
+  .hero span{color:var(--ink2)}
+  .range{color:var(--ink2);font-size:15px;margin-top:4px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:14px}
+  .stat{background:var(--bg);border-radius:12px;padding:10px 12px}
+  .stat .k{font-size:13px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+  .stat .v{font-family:var(--display);font-weight:700;font-size:21px}
+  .tbl{width:100%;border-collapse:collapse;font-size:15px;margin-top:14px}
+  .tbl th{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:right;padding:0 6px 6px}
+  .tbl td{padding:8px 6px;border-top:1px solid var(--line);text-align:right}
+  .tbl th:first-child,.tbl td:first-child{text-align:left;font-weight:700}
+  .tblwrap{overflow-x:auto}
+  .dep{margin-top:10px;font-size:15px;color:var(--ink2)}
+  .note{font-size:13.5px;color:var(--faint);margin-top:12px}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  .btn{appearance:none;cursor:pointer;min-height:56px;padding:12px 20px;border-radius:12px;border:2px solid var(--primary);background:var(--primary);color:var(--primary-ink);font-weight:700;font-size:18px}
+  .btn:disabled{opacity:.45;cursor:default}
+  .btn.ghost{background:transparent;color:var(--ink)}
+  .btn.ghost.armed{border-color:var(--warm);color:var(--warm)}
+  .msg{font-size:15px;color:var(--ink2);margin-top:10px;min-height:1.2em}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head><body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="co">North American Geothermal</span>
+      <h1>Estimate Builder</h1>
+    </div>
+    <div class="rate">
+      <span>Drilling price</span><b class="num" id="rate-now">$4,200 per ton</b>
+      <button type="button" class="linkbtn" id="toggle-settings" aria-expanded="false" aria-controls="settings">Change prices</button>
+    </div>
+  </header>
+
+  <section class="settings" id="settings" hidden>
+    <h3>Prices you can change</h3>
+    <p class="hint" style="margin-top:4px">Everything on the page updates right away. <span id="save-status"></span></p>
+    <div class="grid2">
+      <div>
+        <label class="lbl" for="s-drill">Drilling price per ton</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-drill" min="0" step="50"></div>
+      </div>
+      <div>
+        <label class="lbl" for="s-md">Maryland install, added once per job</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-md" min="0" step="50"></div>
+      </div>
+      <div>
+        <label class="lbl" for="s-ded">Lease deposit reduction</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-ded" min="0" step="100"></div>
+      </div>
+      <div>
+        <label class="lbl" for="s-incl">Drilling already inside the sheet prices, per ton</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-incl" min="0" step="50"></div>
+      </div>
+    </div>
+    <p class="hint">Leave the last box at $0 when the price sheet does not include drilling. If the sheet prices already include drilling at some rate, enter that rate and only the difference is added.</p>
+  </section>
+
+  <div class="layout">
+    <div class="col-left">
+      <section class="card">
+        <div class="step-h"><span class="step-n">1</span><h2>Where is the job?</h2></div>
+        <div class="choices" id="state-choices" role="group" aria-label="State">
+          <button type="button" class="choice" data-state="VA" aria-pressed="false"><b>Virginia</b></button>
+          <button type="button" class="choice" data-state="MD" aria-pressed="false"><b>Maryland</b></button>
+        </div>
+        <div class="fields">
+          <div>
+            <label class="lbl" for="f-cust">Customer name (optional)</label>
+            <input type="text" id="f-cust" autocomplete="off">
+          </div>
+          <div>
+            <label class="lbl" for="f-addr">Job address (optional)</label>
+            <input type="text" id="f-addr" autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="step-h"><span class="step-n">2</span><h2>What kind of job is it?</h2></div>
+        <div class="choices" id="job-choices" role="group" aria-label="Job type">
+          <button type="button" class="choice" data-job="RF" aria-pressed="false"><b>Retrofit</b><span>Existing home, adding geothermal</span></button>
+          <button type="button" class="choice" data-job="RP" aria-pressed="false"><b>Replacement</b><span>Replacing an existing geothermal unit</span></button>
+          <button type="button" class="choice" data-job="NC" aria-pressed="false"><b>New construction</b><span>Building a new home</span></button>
+        </div>
+      </section>
+
+      <section class="card" id="picker-card">
+        <div class="step-h"><span class="step-n">3</span><h2>Tap a unit to add it</h2></div>
+        <div id="lockmsg" class="lockmsg" hidden></div>
+        <div id="picker"></div>
+      </section>
+    </div>
+
+    <div class="col-right">
+      <section class="card est">
+        <h2>Estimate</h2>
+        <div id="lines"></div>
+        <div class="addons" id="addons"></div>
+        <div id="total-box"></div>
+        <div style="margin-top:16px">
+          <label class="lbl" for="f-notes">Notes for the salesman</label>
+          <textarea id="f-notes" placeholder="Water heater, humidifier, anything that needs extra pricing"></textarea>
+        </div>
+      </section>
+
+      <section class="card lease" id="lease-card">
+        <h2>Lease estimate</h2>
+        <div id="lease-body"></div>
+      </section>
+
+      <section class="card">
+        <div class="actions">
+          <button type="button" class="btn" id="btn-sheet" disabled>Print one-page sheet</button>
+          <button type="button" class="btn ghost" id="btn-reset">Start over</button>
+        </div>
+        <div class="msg" id="msg" role="status" aria-live="polite"></div>
+        <div class="note">The sheet opens in a new tab and the print window appears. It lists the HCP codes, prices, lease figures and your notes on one page.</div>
+      </section>
+    </div>
+  </div>
+</div>
+<div class="sr" id="live" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+
+var PRICES = [{"code": "RFA5P36", "price": 50806.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "P", "tons": 3.0, "model": "W5AV036"}, {"code": "RPM5P24", "price": 25988.9, "job": "RP", "ser": "5", "kind": "P", "tons": 2.0, "model": "W5AV024"}, {"code": "NC5P36", "price": 51056.0, "job": "NC", "ser": "5", "kind": "P", "tons": 3.0, "model": "W5AV036"}, {"code": "RFA5P48", "price": 57152.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "P", "tons": 4.0, "model": "W5AV048"}, {"code": "RPM5S24", "price": 25988.9, "job": "RP", "ser": "5", "kind": "S", "tons": 2.0, "model": "W5SZ024"}, {"code": "NC5P48", "price": 57152.0, "job": "NC", "ser": "5", "kind": "P", "tons": 4.0, "model": "W5AV048"}, {"code": "RFA5P60", "price": 63516.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "P", "tons": 5.0, "model": "W5AV060"}, {"code": "RPM5A24", "price": 13019.0, "job": "RP", "ser": "5", "kind": "A", "tons": 2.0, "model": "W5BM024"}, {"code": "NC5P60", "price": 63516.0, "job": "NC", "ser": "5", "kind": "P", "tons": 5.0, "model": "W5AV060"}, {"code": "RFA5P72", "price": 69667.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "P", "tons": 6.0, "model": "W5AV072"}, {"code": "RPM5P36", "price": 26461.4, "job": "RP", "ser": "5", "kind": "P", "tons": 3.0, "model": "W5ZV036"}, {"code": "NC5P72", "price": 69667.0, "job": "NC", "ser": "5", "kind": "P", "tons": 6.0, "model": "W5AV072"}, {"code": "RFX5P36", "price": 41283.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "P", "tons": 3.0, "model": "W5AV036"}, {"code": "RPM5S36", "price": 26461.4, "job": "RP", "ser": "5", "kind": "S", "tons": 3.0, "model": "W5SZ036"}, {"code": "NC7P36", "price": 55806.0, "job": "NC", "ser": "7", "kind": "P", "tons": 3.0, "model": "W7AV036"}, {"code": "RFX5P48", "price": 47373.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "P", "tons": 4.0, "model": "W5AV048"}, {"code": "RPM5A36", "price": 13447.0, "job": "RP", "ser": "5", "kind": "A", "tons": 3.0, "model": "W5BM036"}, {"code": "NC7P48", "price": 61652.0, "job": "NC", "ser": "7", "kind": "P", "tons": 4.0, "model": "W7AV048"}, {"code": "RFX5P60", "price": 53415.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "P", "tons": 5.0, "model": "W5AV060"}, {"code": "RPM5P48", "price": 27066.2, "job": "RP", "ser": "5", "kind": "P", "tons": 4.0, "model": "W5AV048"}, {"code": "NC7P60", "price": 68016.0, "job": "NC", "ser": "7", "kind": "P", "tons": 5.0, "model": "W7AV060"}, {"code": "RFX5P72", "price": 59159.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "P", "tons": 6.0, "model": "W5AV072"}, {"code": "RPM5S48", "price": 27066.2, "job": "RP", "ser": "5", "kind": "S", "tons": 4.0, "model": "W5SZ048"}, {"code": "NC5S36", "price": 51056.0, "job": "NC", "ser": "5", "kind": "S", "tons": 3.0, "model": "W5SZ036"}, {"code": "RFA7P36", "price": 55306.0, "job": "RF", "first": "A", "dbl": false, "ser": "7", "kind": "P", "tons": 3.0, "model": "W7AV036"}, {"code": "RPM5A48", "price": 13893.0, "job": "RP", "ser": "5", "kind": "A", "tons": 4.0, "model": "W5BM048"}, {"code": "NC5S48", "price": 57152.0, "job": "NC", "ser": "5", "kind": "S", "tons": 4.0, "model": "W5SZ048"}, {"code": "RFA7P48", "price": 61652.0, "job": "RF", "first": "A", "dbl": false, "ser": "7", "kind": "P", "tons": 4.0, "model": "W7AV048"}, {"code": "RPM5P60", "price": 27655.8, "job": "RP", "ser": "5", "kind": "P", "tons": 5.0, "model": "W5AV060"}, {"code": "NC5S60", "price": 63516.0, "job": "NC", "ser": "5", "kind": "S", "tons": 5.0, "model": "W5SZ060"}, {"code": "RFA7P60", "price": 68016.0, "job": "RF", "first": "A", "dbl": false, "ser": "7", "kind": "P", "tons": 5.0, "model": "W7AV060"}, {"code": "RPM5S60", "price": 27655.8, "job": "RP", "ser": "5", "kind": "S", "tons": 5.0, "model": "W5SZ060"}, {"code": "NC5S72", "price": 69667.0, "job": "NC", "ser": "5", "kind": "S", "tons": 6.0, "model": "W5SZ072"}, {"code": "RFX7P36", "price": 46033.0, "job": "RF", "first": "X", "dbl": false, "ser": "7", "kind": "P", "tons": 3.0, "model": "W7AV036"}, {"code": "RPM5A60", "price": 14249.0, "job": "RP", "ser": "5", "kind": "A", "tons": 5.0, "model": "W5BM060"}, {"code": "NC7S30", "price": 56806.0, "job": "NC", "ser": "7", "kind": "S", "tons": 2.5, "model": "W7SZ030"}, {"code": "RFX7P48", "price": 51873.0, "job": "RF", "first": "X", "dbl": false, "ser": "7", "kind": "P", "tons": 4.0, "model": "W7AV048"}, {"code": "RPM5P72", "price": 28073.15, "job": "RP", "ser": "5", "kind": "P", "tons": 6.0, "model": "W5AV072"}, {"code": "NC7S42", "price": 62652.0, "job": "NC", "ser": "7", "kind": "S", "tons": 3.5, "model": "W7SZ042"}, {"code": "RFX7P60", "price": 57915.0, "job": "RF", "first": "X", "dbl": false, "ser": "7", "kind": "P", "tons": 5.0, "model": "W7AV060"}, {"code": "RPM5S72", "price": 28073.15, "job": "RP", "ser": "5", "kind": "S", "tons": 6.0, "model": "W5SZ072"}, {"code": "NC7S48", "price": 62652.0, "job": "NC", "ser": "7", "kind": "S", "tons": 4.0, "model": "W7SZ048"}, {"code": "RFA5S36", "price": 50806.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "S", "tons": 3.0, "model": "W5SZ036"}, {"code": "RPM5A72", "price": 14787.0, "job": "RP", "ser": "5", "kind": "A", "tons": 6.0, "model": "W5BM072"}, {"code": "RFA5S48", "price": 57152.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "S", "tons": 4.0, "model": "W5SZ048"}, {"code": "RPM7P36", "price": 33932.15, "job": "RP", "ser": "7", "kind": "P", "tons": 3.0, "model": "W7AV036"}, {"code": "RFA5S60", "price": 63516.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "S", "tons": 5.0, "model": "W5SZ060"}, {"code": "RPM7P48", "price": 35354.53, "job": "RP", "ser": "7", "kind": "P", "tons": 4.0, "model": "W7AV048"}, {"code": "RFA5S72", "price": 69667.0, "job": "RF", "first": "A", "dbl": false, "ser": "5", "kind": "S", "tons": 6.0, "model": "W5SZ072"}, {"code": "RPM7P60", "price": 36277.0, "job": "RP", "ser": "7", "kind": "P", "tons": 5.0, "model": "W7AV060"}, {"code": "VT3012", "price": 14493.0, "job": "VT", "ser": "3", "kind": "V", "tons": 1.0}, {"code": "RFX5S36", "price": 41283.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "S", "tons": 3.0, "model": "W5SZ036"}, {"code": "RPM7S30", "price": 33220.96, "job": "RP", "ser": "7", "kind": "S", "tons": 2.5, "model": "W7SZ030"}, {"code": "VT3018", "price": 14757.0, "job": "VT", "ser": "3", "kind": "V", "tons": 1.5}, {"code": "RFX5S48", "price": 47373.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "S", "tons": 4.0, "model": "W5SZ048"}, {"code": "RPM7A30", "price": 15093.0, "job": "RP", "ser": "7", "kind": "A", "tons": 2.5, "model": "W7BM030"}, {"code": "VT3024", "price": 15019.0, "job": "VT", "ser": "3", "kind": "V", "tons": 2.0}, {"code": "RFX5S60", "price": 53415.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "S", "tons": 5.0, "model": "W5SZ060"}, {"code": "RPM7S42", "price": 34643.34, "job": "RP", "ser": "7", "kind": "S", "tons": 3.5, "model": "W7SZ042"}, {"code": "VT3030", "price": 15187.0, "job": "VT", "ser": "3", "kind": "V", "tons": 2.5}, {"code": "RFX5S72", "price": 59159.0, "job": "RF", "first": "X", "dbl": false, "ser": "5", "kind": "S", "tons": 6.0, "model": "W5SZ072"}, {"code": "RPM7A42", "price": 15493.0, "job": "RP", "ser": "7", "kind": "A", "tons": 3.5, "model": "W7BM042"}, {"code": "VT3036", "price": 15477.0, "job": "VT", "ser": "3", "kind": "V", "tons": 3.0}, {"code": "RFA7S30", "price": 56306.0, "job": "RF", "first": "A", "dbl": false, "ser": "7", "kind": "S", "tons": 2.5, "model": "W7SZ030"}, {"code": "RPM7S48", "price": 35354.53, "job": "RP", "ser": "7", "kind": "S", "tons": 4.0, "model": "W7SZ048"}, {"code": "VT3042", "price": 15459.0, "job": "VT", "ser": "3", "kind": "V", "tons": 3.5}, {"code": "RFA7S42", "price": 62652.0, "job": "RF", "first": "A", "dbl": false, "ser": "7", "kind": "S", "tons": 3.5, "model": "W7SZ042"}, {"code": "RPM7A48", "price": 15893.0, "job": "RP", "ser": "7", "kind": "A", "tons": 4.0, "model": "W7BM048"}, {"code": "VT3048", "price": 15893.0, "job": "VT", "ser": "3", "kind": "V", "tons": 4.0}, {"code": "RFA7S48", "price": 62652.0, "job": "RF", "first": "A", "dbl": false, "ser": "7", "kind": "S", "tons": 4.0, "model": "W7SZ048"}, {"code": "FC1-GL", "price": 3700.0, "job": "ADD"}, {"code": "VT7012", "price": 15968.0, "job": "VT", "ser": "7", "kind": "V", "tons": 1.0}, {"code": "RFX7S30", "price": 46533.0, "job": "RF", "first": "X", "dbl": false, "ser": "7", "kind": "S", "tons": 2.5, "model": "W7SZ030"}, {"code": "FC2-GL", "price": 4400.0, "job": "ADD"}, {"code": "VT7018", "price": 16232.0, "job": "VT", "ser": "7", "kind": "V", "tons": 1.5}, {"code": "RFX7S42", "price": 51873.0, "job": "RF", "first": "X", "dbl": false, "ser": "7", "kind": "S", "tons": 3.5, "model": "W7SZ042"}, {"code": "DSH", "price": 2700.0, "job": "ADD"}, {"code": "VT7024", "price": 16494.0, "job": "VT", "ser": "7", "kind": "V", "tons": 2.0}, {"code": "RFX7S48", "price": 51873.0, "job": "RF", "first": "X", "dbl": false, "ser": "7", "kind": "S", "tons": 4.0, "model": "W7SZ048"}, {"code": "HUU", "price": 1000.0, "job": "ADD"}, {"code": "VT7030", "price": 16662.0, "job": "VT", "ser": "7", "kind": "V", "tons": 2.5}, {"code": "RFA25P36", "price": 51056.0, "job": "RF", "first": "A", "dbl": true, "ser": "5", "kind": "P", "tons": 3.0, "model": "W5AV036"}, {"code": "VT7036", "price": 16952.0, "job": "VT", "ser": "7", "kind": "V", "tons": 3.0}, {"code": "RFA27P36", "price": 55806.0, "job": "RF", "first": "A", "dbl": true, "ser": "7", "kind": "P", "tons": 3.0, "model": "W7AV036"}, {"code": "VT7042", "price": 16934.0, "job": "VT", "ser": "7", "kind": "V", "tons": 3.5}, {"code": "RFA25S36", "price": 50806.0, "job": "RF", "first": "A", "dbl": true, "ser": "5", "kind": "S", "tons": 3.0, "model": "W5SZ036"}, {"code": "VT7048", "price": 17368.0, "job": "VT", "ser": "7", "kind": "V", "tons": 4.0}, {"code": "RFA27S30", "price": 56806.0, "job": "RF", "first": "A", "dbl": true, "ser": "7", "kind": "S", "tons": 2.5, "model": "W7SZ030"}];
+/* Lease pool: [quote id, system cost, upfront, monthly, year 6 buyout, year 12 buyout].
+   Left out: test records (#147, #647, #782, #1012), two partial-scope quotes (#480, #509) and exact duplicates. */
+var POOL = [[114, 100000.0, 50000.0, 59.31, 4485.92, 3416.0], [116, 114900.0, 14900.0, 629.09, 47577.62, 36226.0], [120, 114912.0, 22982.4, 385.12, 29126.87, 22177.0], [124, 77416.0, 15483.2, 364.46, 26250.19, 20288.0], [132, 54652.0, 0.0, 234.53, 12795.02, 6586.0], [133, 84639.0, 16927.8, 405.94, 30701.16, 23376.0], [134, 141358.0, 28271.6, 823.24, 59293.64, 45827.0], [136, 69647.0, 13929.4, 309.9, 23437.56, 17846.0], [137, 68016.0, 13603.2, 115.15, 8708.42, 6631.0], [138, 63516.0, 6351.6, 216.59, 16380.77, 12472.0], [139, 94285.0, 18857.0, 555.41, 40003.2, 30918.0], [140, 103925.0, 20785.0, 475.86, 34273.57, 26489.0], [141, 56852.0, 5685.2, 332.5, 23948.0, 18509.0], [145, 151922.0, 30384.4, 528.71, 39986.37, 30446.0], [177, 89339.0, 16104.13, 603.91, 16849.65, 6745.0], [183, 98185.0, 19637.0, 458.92, 33053.79, 25547.0], [187, 57152.0, 11430.4, 171.55, 12973.98, 9879.0], [227, 223132.0, 44626.4, 939.29, 67652.52, 52287.0], [241, 98185.0, 37445.8, 624.1, 56188.09, 43426.0], [246, 68016.0, 13603.2, 132.35, 10009.33, 7621.0], [250, 50806.0, 0.0, 193.17, 14609.37, 11124.0], [255, 125612.0, 12561.2, 760.04, 54741.66, 42309.0], [279, 91839.0, 18367.8, 316.46, 22793.19, 17616.0], [289, 101185.0, 34610.76, 614.8, 7583.28, 1071.0], [339, 77416.0, 22997.82, 408.51, 5038.87, 712.0], [346, 89339.0, 30597.84, 543.51, 6704.05, 947.0], [347, 123112.0, 42006.45, 746.17, 9203.7, 1300.0], [361, 113670.0, 0.0, 624.25, 26162.87, 12267.0], [366, 77416.0, 26557.43, 471.74, 5818.78, 822.0], [371, 63516.0, 21594.8, 383.59, 4731.46, 668.0], [377, 91839.0, 14481.29, 543.05, 22781.25, 11151.0], [378, 180279.0, 61767.27, 1097.18, 13533.33, 1912.0], [384, 121862.0, 16578.21, 621.68, 26080.02, 12766.0], [385, 91839.0, 0.0, 690.58, 28942.89, 13571.0], [386, 118670.0, 40636.93, 721.84, 8903.63, 1258.0], [391, 60776.0, 10964.7, 411.18, 11472.3, 4592.0], [409, 89339.0, 0.0, 671.01, 28122.53, 13186.0], [478, 57152.0, 0.0, 244.62, 13345.12, 6869.0], [481, 113525.0, 38908.24, 691.13, 8524.87, 1204.0], [484, 57152.0, 14129.64, 250.99, 7013.88, 3049.0], [490, 108185.0, 0.0, 816.19, 34207.24, 16039.0], [513, 149558.0, 0.0, 1123.51, 47087.35, 22079.0], [514, 230328.0, 78770.42, 1399.21, 17258.75, 2438.0], [527, 113525.0, 0.0, 768.73, 41938.43, 21587.0], [530, 50806.0, 0.0, 332.32, 13927.81, 6531.0], [556, 93016.0, 0.0, 728.27, 39730.93, 20451.0], [557, 144668.0, 0.0, 1089.97, 45681.62, 21420.0], [609, 68016.0, 0.0, 372.38, 20315.44, 10457.0], [622, 48306.0, 0.0, 281.46, 15355.03, 7904.0], [624, 89339.0, 0.0, 580.92, 24347.02, 11416.0], [625, 241930.0, 0.0, 2062.21, 86429.23, 40526.0], [629, 50806.0, 0.0, 301.7, 16459.13, 8472.0], [646, 166032.0, 0.0, 1252.49, 52493.14, 24613.0], [655, 125612.0, 0.0, 784.18, 32865.75, 15410.0], [661, 50806.0, 0.0, 298.14, 12495.18, 5859.0], [669, 132458.0, 0.0, 804.56, 33720.09, 15811.0], [692, 89339.0, 0.0, 500.18, 20963.1, 9829.0], [727, 91839.0, 0.0, 519.75, 21783.45, 10214.0], [731, 139290.0, 0.0, 936.35, 51083.06, 26294.0], [739, 86016.0, 0.0, 507.38, 21264.8, 9971.0], [748, 131958.0, 0.0, 850.47, 35644.19, 16713.0], [779, 126082.0, 0.0, 726.17, 39616.74, 20392.0], [784, 255000.0, 0.0, 1465.06, 61402.11, 28791.0], [788, 166482.0, 0.0, 1066.21, 58167.6, 29940.0], [789, 137118.0, 0.0, 807.83, 33857.11, 15875.0], [822, 198684.0, 0.0, 1107.17, 46402.81, 21758.0], [827, 123423.0, 0.0, 700.61, 29363.22, 13768.0], [843, 57152.0, 0.0, 314.61, 13185.45, 6183.0], [855, 99039.0, 0.0, 576.13, 24146.06, 11322.0], [869, 57706.0, 0.0, 352.16, 14759.36, 6920.0], [885, 118982.0, 0.0, 789.21, 43055.87, 22162.0], [888, 57541.0, 0.0, 350.87, 14705.21, 6895.0], [896, 166964.0, 0.0, 908.65, 38082.35, 17856.0], [920, 101339.0, 0.0, 594.13, 24900.79, 11676.0], [922, 108285.0, 0.0, 615.3, 25787.94, 12092.0], [923, 103140.0, 0.0, 608.24, 25491.77, 11953.0], [929, 101039.0, 0.0, 608.39, 25498.4, 11956.0], [933, 85089.0, 0.0, 586.13, 31976.5, 16459.0], [937, 59252.0, 0.0, 331.05, 13874.55, 6506.0], [944, 59816.0, 0.0, 335.46, 14059.62, 6592.0], [945, 63516.0, 0.0, 331.22, 13881.63, 6509.0], [952, 48197.0, 0.0, 229.11, 9602.23, 4502.0], [954, 59900.0, 0.0, 369.34, 15479.3, 7258.0], [958, 70516.0, 0.0, 386.02, 16178.61, 7586.0], [960, 69303.0, 0.0, 343.31, 14388.47, 6747.0], [961, 114109.0, 0.0, 627.69, 26306.92, 12335.0], [970, 150985.0, 0.0, 883.19, 37015.33, 17356.0], [972, 112949.0, 0.0, 651.82, 27318.39, 12809.0], [973, 117449.0, 0.0, 687.05, 28795.02, 13502.0], [975, 57706.0, 0.0, 380.63, 20765.49, 10689.0], [976, 53206.0, 0.0, 345.4, 18843.36, 9699.0], [1006, 116958.0, 0.0, 565.27, 23691.2, 11109.0], [1010, 116958.0, 0.0, 683.21, 28633.91, 13426.0], [1011, 138458.0, 0.0, 711.93, 29837.62, 13991.0], [1013, 63152.0, 0.0, 361.58, 15154.3, 7106.0]].map(function(r){return {id:r[0],cost:r[1],up:r[2],mo:r[3],b6:r[4],b12:r[5]};});
+
+/* STARTING PRICES. Edit these numbers in GitHub to change them for every salesman.
+   drill = drilling price per ton, md = Maryland install (added once, to the first unit),
+   ded = lease deposit reduction, incl = drilling already inside the price sheet, per ton. */
+var DEFAULTS = {drill:4200, md:1000, ded:2500, incl:0};
+var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, incl:DEFAULTS.incl};
+var st = {state:null, job:null, lines:[], nextId:1, mdId:null, addons:{}, upMode:"0", upCustom:0, armed:false};
+
+var JOBNAME = {RF:"Retrofit", RP:"Replacement", NC:"New construction"};
+var KINDNAME = {P:"Package", S:"Split", A:"Air Handler"};
+var ADDON_INFO = {
+  "FC1-GL":{name:"Single pump flow center", note:"5 Series"},
+  "FC2-GL":{name:"Double pump flow center", note:"5 Series"},
+  "DSH":{name:"Desuperheater", note:"Hot water assist"},
+  "HUU":{name:"Horizontal unit upcharge", note:""}
+};
+
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function money(n){
+  if(n==null||isNaN(n)) return "";
+  var r=Math.round(n*100)/100, whole=Math.abs(r-Math.round(r))<0.005;
+  return "$"+r.toLocaleString("en-US",{minimumFractionDigits:whole?0:2,maximumFractionDigits:whole?0:2});
+}
+function money0(n){return "$"+Math.round(n).toLocaleString("en-US");}
+function tonsStr(t){return (t%1===0)?String(t):String(t);}
+
+/* ---------- catalog ---------- */
+var BYCODE={}, OPTS={}, ADDONS=[];
+PRICES.forEach(function(p){
+  BYCODE[p.code]=p;
+  if(p.job==="ADD"){ADDONS.push(p);return;}
+  var key=[p.job,p.ser,p.kind,p.tons].join("|");
+  var o=OPTS[key]||(OPTS[key]={key:key,job:p.job,ser:p.ser,kind:p.kind,tons:p.tons});
+  if(p.job==="RF"){
+    if(p.dbl){ if(p.first==="A") o.dblCode=p.code; }
+    else if(p.first==="A") o.firstCode=p.code; else o.nextCode=p.code;
+  } else o.code=p.code;
+});
+function optName(o){
+  if(o.job==="VT") return "Versatec "+o.ser+"00, "+tonsStr(o.tons)+" Ton";
+  return o.ser+" Series "+tonsStr(o.tons)+" Ton "+KINDNAME[o.kind];
+}
+
+/* ---------- pricing ---------- */
+function ensureMd(){
+  var ok=st.state==="MD" && st.lines.length>0;
+  if(!ok){st.mdId=null;return;}
+  var has=st.lines.some(function(l){return l.id===st.mdId;});
+  if(!has) st.mdId=st.lines[0].id;   // the Maryland charge always rides on one unit
+}
+function priced(){
+  var rf=0;
+  return st.lines.map(function(l){
+    var o=OPTS[l.key], code;
+    var isFirst=false;
+    if(o.job==="RF"){
+      rf++; isFirst=(rf===1);
+      code = isFirst ? ((l.dbl&&o.dblCode)?o.dblCode:o.firstCode) : o.nextCode;
+      if(!code) code=o.firstCode||o.nextCode;
+    } else code=o.code;
+    var p=BYCODE[code];
+    var drill=l.drill ? o.tons*Math.max(0,S.drill-S.incl) : 0;
+    var md=(l.id===st.mdId)?S.md:0;
+    return {l:l,o:o,code:code,model:p.model||"",base:p.price,drill:drill,md:md,total:p.price+drill+md,isFirst:isFirst,rf:o.job==="RF"};
+  });
+}
+function addonRows(){
+  var out=[];
+  ADDONS.forEach(function(a){ if(st.addons[a.code]) out.push({code:a.code,name:ADDON_INFO[a.code].name,price:a.price}); });
+  return out;
+}
+function totals(rows){
+  var u=rows.reduce(function(s,r){return s+r.total;},0);
+  var a=addonRows().reduce(function(s,r){return s+r.price;},0);
+  return {units:u,addons:a,total:u+a};
+}
+
+/* ---------- lease estimate ---------- */
+function median(a){var s=a.slice().sort(function(x,y){return x-y;}),n=s.length,m=Math.floor(n/2);return n%2?s[m]:(s[m-1]+s[m])/2;}
+function quant(a,q){var s=a.slice().sort(function(x,y){return x-y;}),p=(s.length-1)*q,b=Math.floor(p),r=p-b;return s[b+1]!==undefined?s[b]+r*(s[b+1]-s[b]):s[b];}
+function upfrontAmt(cost){
+  if(st.upMode==="10") return Math.round(cost*0.10);
+  if(st.upMode==="20") return Math.round(cost*0.20);
+  if(st.upMode==="custom") return Math.min(Math.max(0,st.upCustom||0),cost);
+  return 0;
+}
+function leaseFor(cost,up){
+  var pct=cost>0?up/cost:0;
+  var sc=POOL.map(function(d){
+    var dc=Math.abs(d.cost-cost)/Math.max(d.cost,cost,1000);
+    var du=Math.abs((d.cost>0?d.up/d.cost:0)-pct);
+    return {d:d,dist:dc+du*1.6};
+  }).sort(function(a,b){return a.dist-b.dist;}).slice(0,12);
+  function band(f){var r=sc.map(function(x){return f(x.d)/x.d.cost;});return {typ:median(r)*cost,low:quant(r,.25)*cost,high:quant(r,.75)*cost};}
+  var mo=band(function(d){return d.mo;}), b6=band(function(d){return d.b6;}), b12=band(function(d){return d.b12;});
+  return {n:sc.length,mo:mo,b6:b6,b12:b12};
+}
+
+/* ---------- rendering ---------- */
+function renderRate(){
+  $("rate-now").textContent=money(S.drill)+" per ton";
+  [["s-drill","drill"],["s-md","md"],["s-ded","ded"],["s-incl","incl"]].forEach(function(p){
+    var el=$(p[0]); if(document.activeElement!==el) el.value=S[p[1]];
+  });
+}
+function renderChoices(){
+  Array.prototype.forEach.call(document.querySelectorAll("[data-state]"),function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-state")===st.state));});
+  Array.prototype.forEach.call(document.querySelectorAll("[data-job]"),function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-job")===st.job));});
+}
+var lastPick=null;
+function renderPicker(){
+  var ready=!!(st.state&&st.job);
+  var lm=$("lockmsg");
+  lm.hidden=ready;
+  if(!ready){
+    lm.textContent = !st.state&&!st.job ? "First pick Virginia or Maryland, then the kind of job." : (!st.state ? "First pick Virginia or Maryland above." : "Next, pick the kind of job above.");
+  }
+  $("picker").className = ready ? "" : "locked";
+  if(!st.job){$("picker").innerHTML="";lastPick=null;return;}
+  if(lastPick===st.job) return;   // keep the buttons (and keyboard focus) in place while units are added
+  lastPick=st.job;
+  var html="";
+  [["5","5 Series"],["7","7 Series"]].forEach(function(s){
+    var kinds=["P","S","A"], rows="";
+    kinds.forEach(function(k){
+      var list=Object.keys(OPTS).map(function(x){return OPTS[x];}).filter(function(o){return o.job===st.job&&o.ser===s[0]&&o.kind===k;}).sort(function(a,b){return a.tons-b.tons;});
+      if(!list.length) return;
+      rows+='<div class="kindrow"><div class="kn">'+KINDNAME[k]+'</div><div class="ubtns">'+list.map(function(o){
+        return '<button type="button" class="ubtn" data-add="'+esc(o.key)+'" aria-label="Add '+esc(optName(o))+'">'+tonsStr(o.tons)+' Ton <span class="plus" aria-hidden="true">+</span></button>';
+      }).join("")+'</div></div>';
+    });
+    if(rows) html+='<div class="series"><h3>'+s[1]+'</h3>'+rows+'</div>';
+  });
+  [["3","Versatec 300"],["7","Versatec 700"]].forEach(function(v,i){
+    var list=Object.keys(OPTS).map(function(x){return OPTS[x];}).filter(function(o){return o.job==="VT"&&o.ser===v[0];}).sort(function(a,b){return a.tons-b.tons;});
+    if(!list.length) return;
+    if(i===0) html+='<div class="series"><h3>Versatec</h3>';
+    html+='<div class="kindrow"><div class="kn">'+v[1].replace("Versatec ","")+' series</div><div class="ubtns">'+list.map(function(o){
+      return '<button type="button" class="ubtn" data-add="'+esc(o.key)+'" aria-label="Add '+esc(optName(o))+'">'+tonsStr(o.tons)+' Ton <span class="plus" aria-hidden="true">+</span></button>';
+    }).join("")+'</div></div>';
+    if(i===1) html+='</div>';
+  });
+  $("picker").innerHTML=html;
+}
+var freshId=null;
+function renderEstimate(){
+  var rows=priced(), t=totals(rows);
+  var box=$("lines");
+  if(!rows.length){
+    box.innerHTML='<div class="empty">No units yet.<br>Tap a unit in step 3 and its price appears here.</div>';
+  } else {
+    box.innerHTML=rows.map(function(r){
+      var hasDbl=r.rf && r.o.dblCode;
+      var sub=JOBNAME[r.o.job]||"Versatec";
+      sub+= " · "+tonsStr(r.o.tons)+" ton";
+      var inc = r.drill>0 ? "Includes drilling "+money(r.drill) : "No drilling";
+      var opts='<label><input type="checkbox" data-drill="'+r.l.id+'"'+(r.l.drill?" checked":"")+'> Drilling</label>';
+      if(hasDbl) opts+='<label><input type="checkbox" data-dbl="'+r.l.id+'"'+(r.l.dbl?" checked":"")+'> Double pump'+((r.l.dbl&&!r.isFirst)?" (first unit only)":"")+'</label>';
+      return '<div class="line'+(r.l.id===freshId?" fresh":"")+'" data-line="'+r.l.id+'">'+
+        '<div class="lt"><div><div class="ln">'+esc(optName(r.o))+'</div><div class="ls">'+esc(sub)+' · '+esc(inc)+'</div></div><div class="lp num">'+money(r.total)+'</div></div>'+
+        '<div class="lopts"><span style="display:inline-flex;gap:14px;flex-wrap:wrap">'+opts+'</span><button type="button" class="rm" data-rm="'+r.l.id+'" aria-label="Remove '+esc(optName(r.o))+'">Remove</button></div></div>';
+    }).join("");
+  }
+  freshId=null;
+  // add-ons
+  $("addons").innerHTML='<h3>Extras</h3>'+ADDONS.map(function(a){
+    var inf=ADDON_INFO[a.code];
+    return '<div class="addrow"><label><input type="checkbox" data-addon="'+esc(a.code)+'"'+(st.addons[a.code]?" checked":"")+'><span>'+esc(inf.name)+(inf.note?'<span class="ls"> · '+esc(inf.note)+'</span>':'')+'</span></label><span class="ap num">'+money(a.price)+'</span></div>';
+  }).join("");
+  // total
+  $("total-box").innerHTML = rows.length||t.addons>0 ? '<div class="total"><span>Estimate total</span><b class="num">'+money(t.total)+'</b></div>' : "";
+  $("btn-sheet").disabled = !rows.length;
+  renderLease(rows.length?t.total:0);
+}
+function renderLease(cost){
+  var body=$("lease-body");
+  if(!cost){
+    body.innerHTML='<p class="sub">Add a unit and the monthly payment and buyout amounts show up here.</p>';
+    return;
+  }
+  var up=upfrontAmt(cost), L=leaseFor(cost,up), dep=Math.max(0,up-S.ded);
+  var annual=L.mo.typ*12;
+  var modes=[["0","$0 down"],["10","10% down"],["20","20% down"],["custom","Other"]];
+  var segs='<div class="seg" role="group" aria-label="Money down">'+modes.map(function(m){return '<button type="button" data-up="'+m[0]+'" aria-pressed="'+(st.upMode===m[0])+'">'+m[1]+'</button>';}).join("")+'</div>';
+  var custom = st.upMode==="custom" ? '<div class="money" style="max-width:240px"><i>$</i><input type="number" inputmode="decimal" id="f-upcustom" min="0" step="500" value="'+(st.upCustom||"")+'" aria-label="Down payment in dollars" placeholder="Down payment"></div>' : "";
+  var y6tot=up+5*annual+L.b6.typ, y12tot=up+11*annual+L.b12.typ, fulltot=up+20*annual;
+  body.innerHTML=
+    '<p class="sub">20 year lease through Upstream. Estimate from '+L.n+' similar NAGeo quotes.</p>'+segs+custom+
+    '<div class="hero"><b class="num">'+money0(L.mo.typ)+'</b><span>per month, plus sales tax</span></div>'+
+    '<div class="range num">Likely between '+money0(L.mo.low)+' and '+money0(L.mo.high)+'</div>'+
+    '<div class="stats">'+
+      '<div class="stat"><div class="k">System cost</div><div class="v num">'+money0(cost)+'</div></div>'+
+      '<div class="stat"><div class="k">Per year</div><div class="v num">'+money0(annual)+'</div></div>'+
+      '<div class="stat"><div class="k">Year 6 buyout</div><div class="v num">'+money0(L.b6.typ)+'</div></div>'+
+      '<div class="stat"><div class="k">Year 12 buyout</div><div class="v num">'+money0(L.b12.typ)+'</div></div>'+
+    '</div>'+
+    '<div class="tblwrap"><table class="tbl"><thead><tr><th>If the customer</th><th>Total paid</th></tr></thead><tbody>'+
+      '<tr><td>Buys out in year 6</td><td class="num">'+money0(y6tot)+'</td></tr>'+
+      '<tr><td>Buys out in year 12</td><td class="num">'+money0(y12tot)+'</td></tr>'+
+      '<tr><td>Keeps the lease 20 years</td><td class="num">'+money0(fulltot)+'</td></tr>'+
+    '</tbody></table></div>'+
+    '<div class="dep num">Upfront on the lease: <b>'+money0(up)+'</b>. Deposit to collect from the customer: <b>'+money0(dep)+'</b> (after the '+money0(S.ded)+' reduction).</div>'+
+    '<div class="note">Estimates only. Upstream sets the final payment after underwriting, so two similar jobs can differ.</div>';
+}
+function renderAll(){ensureMd();renderRate();renderChoices();renderPicker();renderEstimate();}
+
+/* ---------- settings storage ---------- */
+function saveSettings(){
+  var data={drill:S.drill,md:S.md,ded:S.ded,incl:S.incl};
+  try{localStorage.setItem("nageo-est-prices",JSON.stringify(data));}catch(e){}
+  $("save-status").textContent="Saved on this device. To change the starting prices for everyone, edit DEFAULTS in index.html.";
+}
+function applySettings(d){
+  if(!d) return;
+  ["drill","md","ded","incl"].forEach(function(k){ if(typeof d[k]==="number"&&isFinite(d[k])&&d[k]>=0) S[k]=d[k]; });
+}
+try{var raw=localStorage.getItem("nageo-est-prices"); if(raw) applySettings(JSON.parse(raw));}catch(e){}
+/* ---------- events ---------- */
+document.addEventListener("click",function(e){
+  var t=e.target.closest("button,input");
+  if(!t) return;
+  if(t.hasAttribute("data-state")){st.state=t.getAttribute("data-state");renderAll();return;}
+  if(t.hasAttribute("data-job")){st.job=t.getAttribute("data-job");renderAll();return;}
+  if(t.hasAttribute("data-add")){
+    var key=t.getAttribute("data-add"), o=OPTS[key]; if(!o) return;
+    var id=st.nextId++;
+    st.lines.push({id:id,key:key,drill:o.job!=="RP",dbl:false});
+    freshId=id;
+    renderAll();
+    $("live").textContent="Added "+optName(o);
+    return;
+  }
+  if(t.hasAttribute("data-rm")){
+    var rid=+t.getAttribute("data-rm");
+    st.lines=st.lines.filter(function(l){return l.id!==rid;});
+    renderAll();return;
+  }
+  if(t.hasAttribute("data-up")){st.upMode=t.getAttribute("data-up");renderEstimate();return;}
+  if(t.id==="toggle-settings"){
+    var s=$("settings"); s.hidden=!s.hidden; t.setAttribute("aria-expanded",String(!s.hidden)); return;
+  }
+  if(t.id==="btn-reset"){
+    if(!st.armed){st.armed=true;t.textContent="Tap again to clear everything";t.classList.add("armed");setTimeout(function(){st.armed=false;t.textContent="Start over";t.classList.remove("armed");},4000);return;}
+    st.state=null;st.job=null;st.lines=[];st.mdId=null;st.addons={};st.upMode="0";st.upCustom=0;st.armed=false;
+    ["f-cust","f-addr","f-notes"].forEach(function(i){$(i).value="";});
+    t.textContent="Start over";t.classList.remove("armed");$("msg").textContent="";
+    renderAll();return;
+  }
+  if(t.id==="btn-sheet"){makeSheet();return;}
+});
+document.addEventListener("change",function(e){
+  var t=e.target;
+  if(t.hasAttribute&&t.hasAttribute("data-drill")){var l=lineById(+t.getAttribute("data-drill"));if(l){l.drill=t.checked;renderEstimate();}return;}
+  if(t.hasAttribute&&t.hasAttribute("data-dbl")){var l2=lineById(+t.getAttribute("data-dbl"));if(l2){l2.dbl=t.checked;renderEstimate();}return;}
+  if(t.hasAttribute&&t.hasAttribute("data-addon")){st.addons[t.getAttribute("data-addon")]=t.checked;renderEstimate();return;}
+});
+document.addEventListener("input",function(e){
+  var t=e.target, m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-incl":"incl"};
+  if(m[t.id]){
+    var v=parseFloat(t.value); if(isNaN(v)||v<0) v=0;
+    S[m[t.id]]=v; $("rate-now").textContent=money(S.drill)+" per ton";
+    clearTimeout(saveTimer); saveTimer=setTimeout(saveSettings,700);
+    renderEstimate(); return;
+  }
+  if(t.id==="f-upcustom"){st.upCustom=parseFloat(t.value)||0;renderLeaseOnly();}
+});
+var saveTimer=null;
+function lineById(id){for(var i=0;i<st.lines.length;i++) if(st.lines[i].id===id) return st.lines[i];return null;}
+function renderLeaseOnly(){
+  var rows=priced(), t=totals(rows);
+  var f=$("f-upcustom"), pos=f?f.selectionStart:null;
+  renderLease(rows.length?t.total:0);
+  f=$("f-upcustom"); if(f){f.focus(); try{f.setSelectionRange(pos,pos);}catch(e){}}
+}
+
+/* ---------- one page sheet ---------- */
+function makeSheet(){
+  var rows=priced(); if(!rows.length) return;
+  var t=totals(rows), up=upfrontAmt(t.total), L=leaseFor(t.total,up), dep=Math.max(0,up-S.ded);
+  var cust=$("f-cust").value.trim(), addr=$("f-addr").value.trim(), notes=$("f-notes").value.trim();
+  var today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  var stName=st.state==="MD"?"Maryland":(st.state==="VA"?"Virginia":"");
+  var body=rows.map(function(r){
+    var code=r.code+(r.md>0?" + MDI":"");
+    var sub=(r.model?"Model "+r.model+" · ":"")+JOBNAME[r.o.job]+(r.rf?(r.isFirst?" · first unit":" · second unit and up"):"")+(r.l.dbl&&r.isFirst&&r.o.dblCode?" · double pump":"")+(r.md>0?" · includes Maryland install (MDI)":"");
+    return '<tr><td class="code">'+esc(code)+'</td><td><b>'+esc(optName(r.o))+'</b><div class="s">'+esc(sub)+'</div></td><td class="r">'+tonsStr(r.o.tons)+'</td><td class="r">'+money(r.base+r.md)+'</td><td class="r">'+(r.drill>0?money(r.drill):"none")+'</td><td class="r"><b>'+money(r.total)+'</b></td></tr>';
+  }).join("");
+  var ad=addonRows().map(function(a){return '<tr><td class="code">'+esc(a.code)+'</td><td><b>'+esc(a.name)+'</b></td><td class="r"></td><td class="r">'+money(a.price)+'</td><td class="r"></td><td class="r"><b>'+money(a.price)+'</b></td></tr>';}).join("");
+  var leaseBox = '<div class="lease"><h3>Lease estimate (Upstream, 20 years)</h3><table class="kv"><tr><td>System cost</td><td class="r">'+money0(t.total)+'</td><td>Monthly payment</td><td class="r"><b>'+money0(L.mo.typ)+'</b> <span class="s">('+money0(L.mo.low)+' to '+money0(L.mo.high)+')</span></td></tr>'+
+    '<tr><td>Upfront on lease</td><td class="r">'+money0(up)+'</td><td>Year 6 buyout</td><td class="r">'+money0(L.b6.typ)+'</td></tr>'+
+    '<tr><td>Deposit to collect</td><td class="r">'+money0(dep)+'</td><td>Year 12 buyout</td><td class="r">'+money0(L.b12.typ)+'</td></tr></table></div>';
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>NAGeo Estimate Sheet</title><style>'+
+    '@page{size:letter;margin:.5in}*{box-sizing:border-box}body{font:12px/1.35 Arial,Helvetica,sans-serif;color:#111;margin:0}'+
+    'h1{font-size:20px;margin:0}h3{font-size:13px;margin:0 0 6px}.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0B5D5A;padding-bottom:8px;margin-bottom:10px}'+
+    '.co{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#555}.meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin-bottom:10px}.meta div{border-bottom:1px solid #bbb;padding:2px 0}.meta span{color:#666;font-size:10px;text-transform:uppercase;margin-right:6px}'+
+    'table{width:100%;border-collapse:collapse}th{font-size:10px;text-transform:uppercase;text-align:left;color:#555;border-bottom:2px solid #333;padding:4px}td{padding:5px 4px;border-bottom:1px solid #ccc;vertical-align:top}.r{text-align:right;white-space:nowrap}th.r{text-align:right}.code{font-family:Consolas,monospace;font-weight:700;white-space:nowrap}.s{font-size:10px;color:#555}'+
+    '.tot td{border-top:2px solid #333;border-bottom:none;font-size:14px;padding-top:7px}.lease{margin-top:12px;border:1px solid #999;padding:8px 10px}.kv td{border:none;padding:2px 4px}.kv td:nth-child(odd){color:#555}.kv td.r{text-align:right}'+
+    '.notes{margin-top:12px;border:1px solid #999;padding:8px 10px;min-height:150px}.notes pre{white-space:pre-wrap;font:inherit;margin:0 0 6px}.rule{border-bottom:1px solid #ccc;height:22px}'+
+    '.ft{margin-top:10px;font-size:10px;color:#666}'+
+    '</style></head><body>'+
+    '<div class="hd"><div><div class="co">North American Geothermal</div><h1>Estimate Worksheet</h1></div><div style="text-align:right">'+esc(today)+'</div></div>'+
+    '<div class="meta"><div><span>Customer</span>'+esc(cust)+'&nbsp;</div><div><span>State</span>'+esc(stName)+'</div><div style="grid-column:1/3"><span>Address</span>'+esc(addr)+'&nbsp;</div></div>'+
+    '<table><thead><tr><th>HCP code</th><th>Item</th><th class="r">Tons</th><th class="r">Equipment</th><th class="r">Drilling</th><th class="r">Total</th></tr></thead><tbody>'+body+ad+
+    '<tr class="tot"><td colspan="5" class="r"><b>Estimate total</b></td><td class="r"><b>'+money(t.total)+'</b></td></tr></tbody></table>'+
+    leaseBox+
+    '<div class="notes"><h3>Notes and items to price</h3>'+(notes?'<pre>'+esc(notes)+'</pre>':'')+'<div class="rule"></div><div class="rule"></div><div class="rule"></div><div class="rule"></div></div>'+
+    '<div class="ft">Drilling priced at '+money(S.drill)+' per ton. Lease figures are estimates from past Upstream quotes; Upstream sets the final payment.</div>'+
+    '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
+  var slug=(cust||addr||"estimate").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"estimate";
+  var msg=$("msg");
+  var w=null;
+  try{w=window.open("","_blank");}catch(err){w=null;}
+  if(w){
+    w.document.open(); w.document.write(html); w.document.close();
+    msg.textContent="The sheet opened in a new tab and the print window should appear.";
+  } else {
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+    a.download="NAGeo-"+slug+".html"; document.body.appendChild(a); a.click(); a.remove();
+    msg.textContent="Pop-ups are blocked, so the sheet was saved as a file. Open it to print.";
+  }
+}
+
+renderAll();
+})();
+</script>
+</body></html>

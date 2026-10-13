@@ -182,15 +182,15 @@
         <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-md" min="0" step="50"></div>
       </div>
       <div>
+        <label class="lbl" for="s-pct">Overall percentage on all units (minus for a discount)</label>
+        <div class="money"><i>%</i><input type="number" inputmode="decimal" id="s-pct" min="-99" max="300" step="0.5"></div>
+      </div>
+      <div>
         <label class="lbl" for="s-ded">Lease deposit reduction</label>
         <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-ded" min="0" step="100"></div>
       </div>
-      <div>
-        <label class="lbl" for="s-incl">Drilling already inside the sheet prices, per ton</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-incl" min="0" step="50"></div>
-      </div>
     </div>
-    <p class="hint">Leave the last box at $0 when the price sheet does not include drilling. If the sheet prices already include drilling at some rate, enter that rate and only the difference is added.</p>
+    <p class="hint">The HCP price list is built on <span id="sheet-rate"></span> of drilling per ton. When you change the drilling price, every unit moves by the difference times its tons.</p>
   </section>
 
   <div class="layout">
@@ -249,6 +249,8 @@
       <section class="card">
         <div class="actions">
           <button type="button" class="btn" id="btn-sheet" disabled>Print one-page sheet</button>
+          <button type="button" class="btn ghost" id="btn-prices">Print price sheet</button>
+          <button type="button" class="btn ghost" id="btn-prices-m">Price sheet with model numbers</button>
           <button type="button" class="btn ghost" id="btn-reset">Start over</button>
         </div>
         <div class="msg" id="msg" role="status" aria-live="polite"></div>
@@ -269,10 +271,13 @@ var PRICES = [{"code": "RFA5P36", "price": 50806.0, "job": "RF", "first": "A", "
 var POOL = [[114, 100000.0, 50000.0, 59.31, 4485.92, 3416.0], [116, 114900.0, 14900.0, 629.09, 47577.62, 36226.0], [120, 114912.0, 22982.4, 385.12, 29126.87, 22177.0], [124, 77416.0, 15483.2, 364.46, 26250.19, 20288.0], [132, 54652.0, 0.0, 234.53, 12795.02, 6586.0], [133, 84639.0, 16927.8, 405.94, 30701.16, 23376.0], [134, 141358.0, 28271.6, 823.24, 59293.64, 45827.0], [136, 69647.0, 13929.4, 309.9, 23437.56, 17846.0], [137, 68016.0, 13603.2, 115.15, 8708.42, 6631.0], [138, 63516.0, 6351.6, 216.59, 16380.77, 12472.0], [139, 94285.0, 18857.0, 555.41, 40003.2, 30918.0], [140, 103925.0, 20785.0, 475.86, 34273.57, 26489.0], [141, 56852.0, 5685.2, 332.5, 23948.0, 18509.0], [145, 151922.0, 30384.4, 528.71, 39986.37, 30446.0], [177, 89339.0, 16104.13, 603.91, 16849.65, 6745.0], [183, 98185.0, 19637.0, 458.92, 33053.79, 25547.0], [187, 57152.0, 11430.4, 171.55, 12973.98, 9879.0], [227, 223132.0, 44626.4, 939.29, 67652.52, 52287.0], [241, 98185.0, 37445.8, 624.1, 56188.09, 43426.0], [246, 68016.0, 13603.2, 132.35, 10009.33, 7621.0], [250, 50806.0, 0.0, 193.17, 14609.37, 11124.0], [255, 125612.0, 12561.2, 760.04, 54741.66, 42309.0], [279, 91839.0, 18367.8, 316.46, 22793.19, 17616.0], [289, 101185.0, 34610.76, 614.8, 7583.28, 1071.0], [339, 77416.0, 22997.82, 408.51, 5038.87, 712.0], [346, 89339.0, 30597.84, 543.51, 6704.05, 947.0], [347, 123112.0, 42006.45, 746.17, 9203.7, 1300.0], [361, 113670.0, 0.0, 624.25, 26162.87, 12267.0], [366, 77416.0, 26557.43, 471.74, 5818.78, 822.0], [371, 63516.0, 21594.8, 383.59, 4731.46, 668.0], [377, 91839.0, 14481.29, 543.05, 22781.25, 11151.0], [378, 180279.0, 61767.27, 1097.18, 13533.33, 1912.0], [384, 121862.0, 16578.21, 621.68, 26080.02, 12766.0], [385, 91839.0, 0.0, 690.58, 28942.89, 13571.0], [386, 118670.0, 40636.93, 721.84, 8903.63, 1258.0], [391, 60776.0, 10964.7, 411.18, 11472.3, 4592.0], [409, 89339.0, 0.0, 671.01, 28122.53, 13186.0], [478, 57152.0, 0.0, 244.62, 13345.12, 6869.0], [481, 113525.0, 38908.24, 691.13, 8524.87, 1204.0], [484, 57152.0, 14129.64, 250.99, 7013.88, 3049.0], [490, 108185.0, 0.0, 816.19, 34207.24, 16039.0], [513, 149558.0, 0.0, 1123.51, 47087.35, 22079.0], [514, 230328.0, 78770.42, 1399.21, 17258.75, 2438.0], [527, 113525.0, 0.0, 768.73, 41938.43, 21587.0], [530, 50806.0, 0.0, 332.32, 13927.81, 6531.0], [556, 93016.0, 0.0, 728.27, 39730.93, 20451.0], [557, 144668.0, 0.0, 1089.97, 45681.62, 21420.0], [609, 68016.0, 0.0, 372.38, 20315.44, 10457.0], [622, 48306.0, 0.0, 281.46, 15355.03, 7904.0], [624, 89339.0, 0.0, 580.92, 24347.02, 11416.0], [625, 241930.0, 0.0, 2062.21, 86429.23, 40526.0], [629, 50806.0, 0.0, 301.7, 16459.13, 8472.0], [646, 166032.0, 0.0, 1252.49, 52493.14, 24613.0], [655, 125612.0, 0.0, 784.18, 32865.75, 15410.0], [661, 50806.0, 0.0, 298.14, 12495.18, 5859.0], [669, 132458.0, 0.0, 804.56, 33720.09, 15811.0], [692, 89339.0, 0.0, 500.18, 20963.1, 9829.0], [727, 91839.0, 0.0, 519.75, 21783.45, 10214.0], [731, 139290.0, 0.0, 936.35, 51083.06, 26294.0], [739, 86016.0, 0.0, 507.38, 21264.8, 9971.0], [748, 131958.0, 0.0, 850.47, 35644.19, 16713.0], [779, 126082.0, 0.0, 726.17, 39616.74, 20392.0], [784, 255000.0, 0.0, 1465.06, 61402.11, 28791.0], [788, 166482.0, 0.0, 1066.21, 58167.6, 29940.0], [789, 137118.0, 0.0, 807.83, 33857.11, 15875.0], [822, 198684.0, 0.0, 1107.17, 46402.81, 21758.0], [827, 123423.0, 0.0, 700.61, 29363.22, 13768.0], [843, 57152.0, 0.0, 314.61, 13185.45, 6183.0], [855, 99039.0, 0.0, 576.13, 24146.06, 11322.0], [869, 57706.0, 0.0, 352.16, 14759.36, 6920.0], [885, 118982.0, 0.0, 789.21, 43055.87, 22162.0], [888, 57541.0, 0.0, 350.87, 14705.21, 6895.0], [896, 166964.0, 0.0, 908.65, 38082.35, 17856.0], [920, 101339.0, 0.0, 594.13, 24900.79, 11676.0], [922, 108285.0, 0.0, 615.3, 25787.94, 12092.0], [923, 103140.0, 0.0, 608.24, 25491.77, 11953.0], [929, 101039.0, 0.0, 608.39, 25498.4, 11956.0], [933, 85089.0, 0.0, 586.13, 31976.5, 16459.0], [937, 59252.0, 0.0, 331.05, 13874.55, 6506.0], [944, 59816.0, 0.0, 335.46, 14059.62, 6592.0], [945, 63516.0, 0.0, 331.22, 13881.63, 6509.0], [952, 48197.0, 0.0, 229.11, 9602.23, 4502.0], [954, 59900.0, 0.0, 369.34, 15479.3, 7258.0], [958, 70516.0, 0.0, 386.02, 16178.61, 7586.0], [960, 69303.0, 0.0, 343.31, 14388.47, 6747.0], [961, 114109.0, 0.0, 627.69, 26306.92, 12335.0], [970, 150985.0, 0.0, 883.19, 37015.33, 17356.0], [972, 112949.0, 0.0, 651.82, 27318.39, 12809.0], [973, 117449.0, 0.0, 687.05, 28795.02, 13502.0], [975, 57706.0, 0.0, 380.63, 20765.49, 10689.0], [976, 53206.0, 0.0, 345.4, 18843.36, 9699.0], [1006, 116958.0, 0.0, 565.27, 23691.2, 11109.0], [1010, 116958.0, 0.0, 683.21, 28633.91, 13426.0], [1011, 138458.0, 0.0, 711.93, 29837.62, 13991.0], [1013, 63152.0, 0.0, 361.58, 15154.3, 7106.0]].map(function(r){return {id:r[0],cost:r[1],up:r[2],mo:r[3],b6:r[4],b12:r[5]};});
 
 /* STARTING PRICES. Edit these numbers in GitHub to change them for every salesman.
-   drill = drilling price per ton, md = Maryland install (added once, to the first unit),
-   ded = lease deposit reduction, incl = drilling already inside the price sheet, per ton. */
-var DEFAULTS = {drill:4200, md:1000, ded:2500, incl:0};
-var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, incl:DEFAULTS.incl};
+   drill = drilling price per ton, md = Maryland install, ded = lease deposit reduction,
+   pct = overall percentage added to every unit price (0 = none, -5 = 5% discount).
+   SHEET_DRILL = the drilling rate already built into the HCP price sheet. Only change it
+   if the price sheet itself is rebuilt on a different rate. */
+var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0};
+var SHEET_DRILL = 4200;
+var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, pct:DEFAULTS.pct};
 var st = {state:null, job:null, lines:[], nextId:1, mdId:null, addons:{}, upMode:"0", upCustom:0, armed:false};
 
 var JOBNAME = {RF:"Retrofit", RP:"Replacement", NC:"New construction"};
@@ -312,8 +317,14 @@ function optName(o){
 }
 
 /* ---------- pricing ---------- */
+function allNC(){return st.lines.length>0&&st.lines.every(function(l){return OPTS[l.key].job==="NC";});}
+function mdItem(){return (st.state==="MD"&&allNC())?S.md:0;}   // new construction units all cost the same, so Maryland install shows as its own line
+function unitPrice(p){   // HCP price, moved for the drilling price, then the overall percentage
+  var adj=(p.job==="RP")?0:p.tons*(S.drill-SHEET_DRILL);
+  return Math.round((p.price+adj)*(1+S.pct/100)*100)/100;
+}
 function ensureMd(){
-  var ok=st.state==="MD" && st.lines.length>0;
+  var ok=st.state==="MD" && st.lines.length>0 && !allNC();
   if(!ok){st.mdId=null;return;}
   var has=st.lines.some(function(l){return l.id===st.mdId;});
   if(!has) st.mdId=st.lines[0].id;   // the Maryland charge always rides on one unit
@@ -329,9 +340,12 @@ function priced(){
       if(!code) code=o.firstCode||o.nextCode;
     } else code=o.code;
     var p=BYCODE[code];
-    var drill=l.drill ? o.tons*Math.max(0,S.drill-S.incl) : 0;
+    var hasDrill=(o.job!=="RP");   // replacements reuse the existing loop
+    var f=1+S.pct/100;
+    var drillTotal=hasDrill?o.tons*S.drill*f:0;
+    var unit=unitPrice(p);
     var md=(l.id===st.mdId)?S.md:0;
-    return {l:l,o:o,code:code,model:p.model||"",base:p.price,drill:drill,md:md,total:p.price+drill+md,isFirst:isFirst,rf:o.job==="RF"};
+    return {l:l,o:o,code:code,model:p.model||"",base:p.price,drill:unit-p.price,drillTotal:drillTotal,md:md,total:unit+md,isFirst:isFirst,rf:o.job==="RF"};
   });
 }
 function addonRows(){
@@ -342,7 +356,8 @@ function addonRows(){
 function totals(rows){
   var u=rows.reduce(function(s,r){return s+r.total;},0);
   var a=addonRows().reduce(function(s,r){return s+r.price;},0);
-  return {units:u,addons:a,total:u+a};
+  var m=mdItem();
+  return {units:u,addons:a,md:m,total:u+a+m};
 }
 
 /* ---------- lease estimate ---------- */
@@ -367,9 +382,15 @@ function leaseFor(cost,up){
 }
 
 /* ---------- rendering ---------- */
+function rateText(){
+  var s=money(S.drill)+" per ton";
+  if(S.pct) s+=" · "+(S.pct>0?"+":"")+(Math.round(S.pct*100)/100)+"% on units";
+  return s;
+}
 function renderRate(){
-  $("rate-now").textContent=money(S.drill)+" per ton";
-  [["s-drill","drill"],["s-md","md"],["s-ded","ded"],["s-incl","incl"]].forEach(function(p){
+  $("sheet-rate").textContent=money(SHEET_DRILL);
+  $("rate-now").textContent=rateText();
+  [["s-drill","drill"],["s-md","md"],["s-ded","ded"],["s-pct","pct"]].forEach(function(p){
     var el=$(p[0]); if(document.activeElement!==el) el.value=S[p[1]];
   });
 }
@@ -423,13 +444,13 @@ function renderEstimate(){
       var hasDbl=r.rf && r.o.dblCode;
       var sub=JOBNAME[r.o.job]||"Versatec";
       sub+= " · "+tonsStr(r.o.tons)+" ton";
-      var inc = r.drill>0 ? "Includes drilling "+money(r.drill) : "No drilling";
-      var opts='<label><input type="checkbox" data-drill="'+r.l.id+'"'+(r.l.drill?" checked":"")+'> Drilling</label>';
+      var inc = r.drillTotal>0 ? "Includes drilling "+money(r.drillTotal) : "No drilling";
+      var opts="";
       if(hasDbl) opts+='<label><input type="checkbox" data-dbl="'+r.l.id+'"'+(r.l.dbl?" checked":"")+'> Double pump'+((r.l.dbl&&!r.isFirst)?" (first unit only)":"")+'</label>';
       return '<div class="line'+(r.l.id===freshId?" fresh":"")+'" data-line="'+r.l.id+'">'+
         '<div class="lt"><div><div class="ln">'+esc(optName(r.o))+'</div><div class="ls">'+esc(sub)+' · '+esc(inc)+'</div></div><div class="lp num">'+money(r.total)+'</div></div>'+
         '<div class="lopts"><span style="display:inline-flex;gap:14px;flex-wrap:wrap">'+opts+'</span><button type="button" class="rm" data-rm="'+r.l.id+'" aria-label="Remove '+esc(optName(r.o))+'">Remove</button></div></div>';
-    }).join("");
+    }).join("")+(t.md>0?'<div class="line"><div class="lt"><div><div class="ln">Maryland install (MDI)</div><div class="ls">Added once per job</div></div><div class="lp num">'+money(t.md)+'</div></div></div>':"");
   }
   freshId=null;
   // add-ons
@@ -476,13 +497,14 @@ function renderAll(){ensureMd();renderRate();renderChoices();renderPicker();rend
 
 /* ---------- settings storage ---------- */
 function saveSettings(){
-  var data={drill:S.drill,md:S.md,ded:S.ded,incl:S.incl};
+  var data={drill:S.drill,md:S.md,ded:S.ded,pct:S.pct};
   try{localStorage.setItem("nageo-est-prices",JSON.stringify(data));}catch(e){}
   $("save-status").textContent="Saved on this device. To change the starting prices for everyone, edit DEFAULTS in index.html.";
 }
 function applySettings(d){
   if(!d) return;
-  ["drill","md","ded","incl"].forEach(function(k){ if(typeof d[k]==="number"&&isFinite(d[k])&&d[k]>=0) S[k]=d[k]; });
+  ["drill","md","ded"].forEach(function(k){ if(typeof d[k]==="number"&&isFinite(d[k])&&d[k]>=0) S[k]=d[k]; });
+  if(typeof d.pct==="number"&&isFinite(d.pct)&&d.pct>-100&&d.pct<=300) S.pct=d.pct;
 }
 try{var raw=localStorage.getItem("nageo-est-prices"); if(raw) applySettings(JSON.parse(raw));}catch(e){}
 /* ---------- events ---------- */
@@ -494,7 +516,7 @@ document.addEventListener("click",function(e){
   if(t.hasAttribute("data-add")){
     var key=t.getAttribute("data-add"), o=OPTS[key]; if(!o) return;
     var id=st.nextId++;
-    st.lines.push({id:id,key:key,drill:o.job!=="RP",dbl:false});
+    st.lines.push({id:id,key:key,dbl:false});
     freshId=id;
     renderAll();
     $("live").textContent="Added "+optName(o);
@@ -517,18 +539,20 @@ document.addEventListener("click",function(e){
     renderAll();return;
   }
   if(t.id==="btn-sheet"){makeSheet();return;}
+  if(t.id==="btn-prices"||t.id==="btn-prices-m"){
+    openDoc(priceSheet(t.id==="btn-prices-m"),"NAGeo-price-sheet.html","The price sheet opened in a new tab and the print window should appear.");return;
+  }
 });
 document.addEventListener("change",function(e){
   var t=e.target;
-  if(t.hasAttribute&&t.hasAttribute("data-drill")){var l=lineById(+t.getAttribute("data-drill"));if(l){l.drill=t.checked;renderEstimate();}return;}
   if(t.hasAttribute&&t.hasAttribute("data-dbl")){var l2=lineById(+t.getAttribute("data-dbl"));if(l2){l2.dbl=t.checked;renderEstimate();}return;}
   if(t.hasAttribute&&t.hasAttribute("data-addon")){st.addons[t.getAttribute("data-addon")]=t.checked;renderEstimate();return;}
 });
 document.addEventListener("input",function(e){
-  var t=e.target, m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-incl":"incl"};
+  var t=e.target, m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct"};
   if(m[t.id]){
-    var v=parseFloat(t.value); if(isNaN(v)||v<0) v=0;
-    S[m[t.id]]=v; $("rate-now").textContent=money(S.drill)+" per ton";
+    var v=parseFloat(t.value); if(isNaN(v)) v=0; if(t.id!=="s-pct"&&v<0) v=0; if(t.id==="s-pct"){ if(v<=-100) v=-99; if(v>300) v=300; }
+    S[m[t.id]]=v; $("rate-now").textContent=rateText();
     clearTimeout(saveTimer); saveTimer=setTimeout(saveSettings,700);
     renderEstimate(); return;
   }
@@ -553,9 +577,10 @@ function makeSheet(){
   var body=rows.map(function(r){
     var code=r.code+(r.md>0?" + MDI":"");
     var sub=(r.model?"Model "+r.model+" · ":"")+JOBNAME[r.o.job]+(r.rf?(r.isFirst?" · first unit":" · second unit and up"):"")+(r.l.dbl&&r.isFirst&&r.o.dblCode?" · double pump":"")+(r.md>0?" · includes Maryland install (MDI)":"");
-    return '<tr><td class="code">'+esc(code)+'</td><td><b>'+esc(optName(r.o))+'</b><div class="s">'+esc(sub)+'</div></td><td class="r">'+tonsStr(r.o.tons)+'</td><td class="r">'+money(r.base+r.md)+'</td><td class="r">'+(r.drill>0?money(r.drill):"none")+'</td><td class="r"><b>'+money(r.total)+'</b></td></tr>';
+    return '<tr><td class="code">'+esc(code)+'</td><td><b>'+esc(optName(r.o))+'</b><div class="s">'+esc(sub)+'</div></td><td class="r">'+tonsStr(r.o.tons)+'</td><td class="r">'+money(r.base+r.md)+'</td><td class="r">'+(Math.abs(r.drill)<0.005?"none":(r.drill>0?"+":"-")+money(Math.abs(r.drill)))+'</td><td class="r"><b>'+money(r.total)+'</b></td></tr>';
   }).join("");
   var ad=addonRows().map(function(a){return '<tr><td class="code">'+esc(a.code)+'</td><td><b>'+esc(a.name)+'</b></td><td class="r"></td><td class="r">'+money(a.price)+'</td><td class="r"></td><td class="r"><b>'+money(a.price)+'</b></td></tr>';}).join("");
+  var mdRow = t.md>0 ? '<tr><td class="code">MDI</td><td><b>Maryland install</b></td><td class="r"></td><td class="r">'+money(t.md)+'</td><td class="r"></td><td class="r"><b>'+money(t.md)+'</b></td></tr>' : "";
   var leaseBox = '<div class="lease"><h3>Lease estimate (Upstream, 20 years)</h3><table class="kv"><tr><td>System cost</td><td class="r">'+money0(t.total)+'</td><td>Monthly payment</td><td class="r"><b>'+money0(L.mo.typ)+'</b> <span class="s">('+money0(L.mo.low)+' to '+money0(L.mo.high)+')</span></td></tr>'+
     '<tr><td>Upfront on lease</td><td class="r">'+money0(up)+'</td><td>Year 6 buyout</td><td class="r">'+money0(L.b6.typ)+'</td></tr>'+
     '<tr><td>Deposit to collect</td><td class="r">'+money0(dep)+'</td><td>Year 12 buyout</td><td class="r">'+money0(L.b12.typ)+'</td></tr></table></div>';
@@ -570,25 +595,67 @@ function makeSheet(){
     '</style></head><body>'+
     '<div class="hd"><div><div class="co">North American Geothermal</div><h1>Estimate Worksheet</h1></div><div style="text-align:right">'+esc(today)+'</div></div>'+
     '<div class="meta"><div><span>Customer</span>'+esc(cust)+'&nbsp;</div><div><span>State</span>'+esc(stName)+'</div><div style="grid-column:1/3"><span>Address</span>'+esc(addr)+'&nbsp;</div></div>'+
-    '<table><thead><tr><th>HCP code</th><th>Item</th><th class="r">Tons</th><th class="r">Equipment</th><th class="r">Drilling</th><th class="r">Total</th></tr></thead><tbody>'+body+ad+
+    '<table><thead><tr><th>HCP code</th><th>Item</th><th class="r">Tons</th><th class="r">HCP price</th><th class="r">Adjustments</th><th class="r">Total</th></tr></thead><tbody>'+body+ad+mdRow+
     '<tr class="tot"><td colspan="5" class="r"><b>Estimate total</b></td><td class="r"><b>'+money(t.total)+'</b></td></tr></tbody></table>'+
     leaseBox+
     '<div class="notes"><h3>Notes and items to price</h3>'+(notes?'<pre>'+esc(notes)+'</pre>':'')+'<div class="rule"></div><div class="rule"></div><div class="rule"></div><div class="rule"></div></div>'+
-    '<div class="ft">Drilling priced at '+money(S.drill)+' per ton. Lease figures are estimates from past Upstream quotes; Upstream sets the final payment.</div>'+
+    '<div class="ft">Drilling priced at '+money(S.drill)+' per ton. HCP prices are built on '+money(SHEET_DRILL)+' per ton. Adjustments are the drilling price change'+(S.pct?' and the '+S.pct+'% overall change':'')+'. Lease figures are estimates from past Upstream quotes; Upstream sets the final payment.</div>'+
     '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
   var slug=(cust||addr||"estimate").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"estimate";
-  var msg=$("msg");
-  var w=null;
+  openDoc(html,"NAGeo-"+slug+".html","The sheet opened in a new tab and the print window should appear.");
+}
+function openDoc(html,filename,okMsg){
+  var msg=$("msg"), w=null;
   try{w=window.open("","_blank");}catch(err){w=null;}
   if(w){
     w.document.open(); w.document.write(html); w.document.close();
-    msg.textContent="The sheet opened in a new tab and the print window should appear.";
+    msg.textContent=okMsg;
   } else {
     var a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));
-    a.download="NAGeo-"+slug+".html"; document.body.appendChild(a); a.click(); a.remove();
+    a.download=filename; document.body.appendChild(a); a.click(); a.remove();
     msg.textContent="Pop-ups are blocked, so the sheet was saved as a file. Open it to print.";
   }
+}
+
+/* ---------- printable price sheet (like the HCP price sheets) ---------- */
+function pName(p){
+  if(p.job==="VT") return "Versatec "+p.ser+"00, "+tonsStr(p.tons)+" Ton";
+  var n=p.ser+" Series "+tonsStr(p.tons)+" Ton "+KINDNAME[p.kind];
+  if(p.job==="RF") n+=p.dbl?" · Double pump":(p.first==="A"?" · First unit":" · Second unit+");
+  return n;
+}
+function fmt2(n){return "$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function priceSheet(useModels){
+  function block(title,list){
+    return '<div class="blk"><h4>'+title+'</h4><table><thead><tr><th>Code</th><th>Unit</th><th class="r">Price</th></tr></thead><tbody>'+list.map(function(r){
+      return '<tr><td class="code">'+esc(r[0])+'</td><td>'+esc(r[1])+'</td><td class="r">'+r[2]+'</td></tr>';
+    }).join("")+'</tbody></table></div>';
+  }
+  function unitRows(filter){
+    return PRICES.filter(filter).map(function(p){
+      var label=pName(p);
+      if(useModels&&p.model){
+        label=p.model+(p.job==="RF"?(p.dbl?" · Double pump":(p.first==="A"?" · First unit":" · Second unit+")):"");
+      }
+      return [p.code,label,fmt2(unitPrice(p))];
+    });
+  }
+  var vt3=unitRows(function(p){return p.job==="VT"&&p.ser==="3";}), vt7=unitRows(function(p){return p.job==="VT"&&p.ser==="7";});
+  var extras=ADDONS.map(function(a){return [a.code,ADDON_INFO[a.code].name,fmt2(a.price)];});
+  extras.push(["MDI","Maryland install",fmt2(S.md)]);
+  var note=(S.drill!==SHEET_DRILL||S.pct)?("Drilling at "+money(S.drill)+" per ton"+(S.pct?", "+(S.pct>0?"+":"")+S.pct+"% on all units":"")):"Standard prices";
+  var today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  return '<!doctype html><html><head><meta charset="utf-8"><title>NAGeo Price Sheet</title><style>'+
+    '@page{size:letter landscape;margin:.4in}*{box-sizing:border-box}body{font:9.5px/1.25 Arial,Helvetica,sans-serif;color:#111;margin:0}'+
+    '.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0B5D5A;padding-bottom:5px;margin-bottom:8px}.hd h1{font-size:17px;margin:0}.co{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#555}'+
+    '.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}h4{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#0B5D5A;color:#fff;padding:3px 5px}.blk{margin-bottom:9px}'+
+    'table{width:100%;border-collapse:collapse}th{font-size:8px;text-transform:uppercase;text-align:left;color:#555;border-bottom:1px solid #333;padding:2px 3px}th.r,td.r{text-align:right;white-space:nowrap}td{padding:2px 3px;border-bottom:1px solid #ddd}.code{font-family:Consolas,monospace;font-weight:700;white-space:nowrap}'+
+    '</style></head><body><div class="hd"><div><div class="co">North American Geothermal</div><h1>Price Sheet'+(useModels?' (model numbers)':'')+'</h1></div><div style="text-align:right">'+esc(note)+'<br>'+esc(today)+'</div></div>'+
+    '<div class="cols"><div>'+block("Retrofit",unitRows(function(p){return p.job==="RF";}))+'</div>'+
+    '<div>'+block("Replacement",unitRows(function(p){return p.job==="RP";}))+block("Extras",extras)+'</div>'+
+    '<div>'+block("New construction",unitRows(function(p){return p.job==="NC";}))+block("Versatec 300",vt3)+block("Versatec 700",vt7)+'</div></div>'+
+    '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
 }
 
 renderAll();

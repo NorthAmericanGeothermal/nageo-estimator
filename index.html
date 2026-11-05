@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>NAGeo Estimate Builder</title>
+<title>NAGeo Selling Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap" rel="stylesheet">
@@ -44,7 +44,7 @@
   .brand{display:flex;flex-direction:column}
   .brand .co{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
   .brand h1{font-size:30px;font-weight:700}
-  .rate{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 14px;min-width:0}
+  .rate{flex-wrap:wrap;display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 14px;min-width:0}
   .rate span{color:var(--ink2);font-size:15px}
   .rate b{font-size:17px}
   .linkbtn{appearance:none;border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:8px 12px;font-weight:700;cursor:pointer;color:var(--ink)}
@@ -154,6 +154,14 @@
   .btn.ghost{background:transparent;color:var(--ink)}
   .btn.ghost.armed{border-color:var(--warm);color:var(--warm)}
   .msg{font-size:15px;color:var(--ink2);margin-top:10px;min-height:1.2em}
+  .srow{display:flex;justify-content:space-between;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+  .srow .sn{font-weight:700;min-width:0}
+  .srow .ss{font-size:14px;color:var(--ink2)}
+  .srow .sp{font-family:var(--display);font-weight:700;font-size:19px}
+  .srow .sb{display:flex;gap:8px;align-items:center}
+  .mini{appearance:none;cursor:pointer;min-height:42px;padding:6px 14px;border-radius:10px;border:2px solid var(--primary);background:var(--card);color:var(--primary);font-weight:700}
+  .mini.danger{border-color:var(--warm);color:var(--warm)}
+  .opened{background:var(--primary-soft);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
 </head><body>
@@ -161,11 +169,12 @@
   <header class="top">
     <div class="brand">
       <span class="co">North American Geothermal</span>
-      <h1>Estimate Builder</h1>
+      <h1>Selling Tool</h1>
     </div>
     <div class="rate">
       <span>Drilling price</span><b class="num" id="rate-now">$4,200 per ton</b>
       <button type="button" class="linkbtn" id="toggle-settings" aria-expanded="false" aria-controls="settings">Change prices</button>
+      <button type="button" class="linkbtn" id="toggle-saved" aria-expanded="false" aria-controls="saved">Saved estimates (0)</button>
     </div>
   </header>
 
@@ -191,6 +200,13 @@
       </div>
     </div>
     <p class="hint">The HCP price list is built on <span id="sheet-rate"></span> of drilling per ton. When you change the drilling price, every unit moves by the difference times its tons.</p>
+  </section>
+
+  <section class="settings" id="saved" hidden>
+    <h3>Saved estimates</h3>
+    <p class="hint" style="margin-top:4px">Saved on this device. Clearing the browser's data erases them.</p>
+    <div style="margin-top:10px"><label class="lbl" for="saved-q">Search by name or address</label><input type="text" id="saved-q" autocomplete="off"></div>
+    <div id="saved-list" style="margin-top:8px"></div>
   </section>
 
   <div class="layout">
@@ -232,6 +248,7 @@
     <div class="col-right">
       <section class="card est">
         <h2>Estimate</h2>
+        <div id="opened-note" class="opened" hidden></div>
         <div id="lines"></div>
         <div class="addons" id="addons"></div>
         <div id="total-box"></div>
@@ -246,15 +263,25 @@
         <div id="lease-body"></div>
       </section>
 
+      <section class="card" id="grec-card" hidden>
+        <h2 id="grec-title">GREC estimate</h2>
+        <div id="grec-body"></div>
+      </section>
+
       <section class="card">
         <div class="actions">
+          <button type="button" class="btn" id="btn-save" disabled>Save estimate</button>
+          <button type="button" class="btn ghost" id="btn-save-new" hidden>Save as a new copy</button>
           <button type="button" class="btn" id="btn-sheet" disabled>Print one-page sheet</button>
+          <button type="button" class="btn" id="btn-customer" disabled>Print customer summary</button>
+        </div>
+        <div class="actions">
           <button type="button" class="btn ghost" id="btn-prices">Print price sheet</button>
           <button type="button" class="btn ghost" id="btn-prices-m">Price sheet with model numbers</button>
           <button type="button" class="btn ghost" id="btn-reset">Start over</button>
         </div>
         <div class="msg" id="msg" role="status" aria-live="polite"></div>
-        <div class="note">The sheet opens in a new tab and the print window appears. It lists the HCP codes, prices, lease figures and your notes on one page.</div>
+        <div class="note">Printouts open in a new tab and the print window appears. The one-page sheet is for the salesman and lists HCP codes. The customer summary has no HCP codes.</div>
       </section>
     </div>
   </div>
@@ -278,7 +305,7 @@ var POOL = [[114, 100000.0, 50000.0, 59.31, 4485.92, 3416.0], [116, 114900.0, 14
 var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0};
 var SHEET_DRILL = 4200;
 var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, pct:DEFAULTS.pct};
-var st = {state:null, job:null, lines:[], nextId:1, mdId:null, addons:{}, upMode:"0", upCustom:0, armed:false};
+var st = {state:null, job:null, lines:[], nextId:1, mdId:null, addons:{}, upMode:"0", upCustom:0, armed:false, grec:{}, savedId:null, opened:null, delArmed:null};
 
 var JOBNAME = {RF:"Retrofit", RP:"Replacement", NC:"New construction"};
 var KINDNAME = {P:"Package", S:"Split", A:"Air Handler"};
@@ -462,6 +489,10 @@ function renderEstimate(){
   $("total-box").innerHTML = rows.length||t.addons>0 ? '<div class="total"><span>Estimate total</span><b class="num">'+money(t.total)+'</b></div>' : "";
   $("btn-sheet").disabled = !rows.length;
   renderLease(rows.length?t.total:0);
+  renderGrec(rows,t);
+  $("btn-save").disabled=!rows.length; $("btn-customer").disabled=!rows.length;
+  $("btn-save").textContent=st.savedId?"Update saved estimate":"Save estimate";
+  $("btn-save-new").hidden=!st.savedId;
 }
 function renderLease(cost){
   var body=$("lease-body");
@@ -493,10 +524,23 @@ function renderLease(cost){
     '<div class="dep num">Upfront on the lease: <b>'+money0(up)+'</b>. Deposit to collect from the customer: <b>'+money0(dep)+'</b> (after the '+money0(S.ded)+' reduction).</div>'+
     '<div class="note">Estimates only. Upstream sets the final payment after underwriting, so two similar jobs can differ.</div>';
 }
-function renderAll(){ensureMd();renderRate();renderChoices();renderPicker();renderEstimate();}
+function renderAll(){
+  ensureMd();renderRate();renderChoices();renderPicker();renderEstimate();renderSaved();
+  var on=$("opened-note");
+  if(st.opened){
+    on.hidden=false;
+    on.innerHTML='<span>Opened as saved on '+esc(new Date(st.opened).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}))+', with the prices from that day.</span><button type="button" class="mini" data-today="1">Use today\'s prices</button>';
+  } else on.hidden=true;
+}
 
 /* ---------- settings storage ---------- */
+function devicePrices(){
+  var o={drill:DEFAULTS.drill,md:DEFAULTS.md,ded:DEFAULTS.ded,pct:DEFAULTS.pct};
+  try{var r=localStorage.getItem("nageo-est-prices"); if(r){var d=JSON.parse(r); ["drill","md","ded"].forEach(function(k){if(typeof d[k]==="number"&&d[k]>=0)o[k]=d[k];}); if(typeof d.pct==="number"&&d.pct>-100&&d.pct<=300)o.pct=d.pct;}}catch(e){}
+  return o;
+}
 function saveSettings(){
+  if(st.opened){$("save-status").textContent="These prices apply to this opened estimate. Save the estimate to keep them.";return;}
   var data={drill:S.drill,md:S.md,ded:S.ded,pct:S.pct};
   try{localStorage.setItem("nageo-est-prices",JSON.stringify(data));}catch(e){}
   $("save-status").textContent="Saved on this device. To change the starting prices for everyone, edit DEFAULTS in index.html.";
@@ -533,12 +577,19 @@ document.addEventListener("click",function(e){
   }
   if(t.id==="btn-reset"){
     if(!st.armed){st.armed=true;t.textContent="Tap again to clear everything";t.classList.add("armed");setTimeout(function(){st.armed=false;t.textContent="Start over";t.classList.remove("armed");},4000);return;}
-    st.state=null;st.job=null;st.lines=[];st.mdId=null;st.addons={};st.upMode="0";st.upCustom=0;st.armed=false;
+    st.state=null;st.job=null;st.lines=[];st.mdId=null;st.addons={};st.upMode="0";st.upCustom=0;st.armed=false;st.grec={};st.savedId=null;if(st.opened){Object.assign(S,devicePrices());st.opened=null;}
     ["f-cust","f-addr","f-notes"].forEach(function(i){$(i).value="";});
     t.textContent="Start over";t.classList.remove("armed");$("msg").textContent="";
     renderAll();return;
   }
   if(t.id==="btn-sheet"){makeSheet();return;}
+  if(t.id==="btn-customer"){makeCustomerSheet();return;}
+  if(t.id==="btn-save"){saveEstimate(false);return;}
+  if(t.id==="btn-save-new"){saveEstimate(true);return;}
+  if(t.id==="toggle-saved"){var sv=$("saved"); sv.hidden=!sv.hidden; t.setAttribute("aria-expanded",String(!sv.hidden)); return;}
+  if(t.hasAttribute("data-open")){openEstimate(t.getAttribute("data-open"));return;}
+  if(t.hasAttribute("data-del")){deleteEstimate(t.getAttribute("data-del"),t);return;}
+  if(t.hasAttribute("data-today")){Object.assign(S,devicePrices());st.opened=null;renderAll();return;}
   if(t.id==="btn-prices"||t.id==="btn-prices-m"){
     openDoc(priceSheet(t.id==="btn-prices-m"),"NAGeo-price-sheet.html","The price sheet opened in a new tab and the print window should appear.");return;
   }
@@ -549,7 +600,14 @@ document.addEventListener("change",function(e){
   if(t.hasAttribute&&t.hasAttribute("data-addon")){st.addons[t.getAttribute("data-addon")]=t.checked;renderEstimate();return;}
 });
 document.addEventListener("input",function(e){
-  var t=e.target, m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct"};
+  var t=e.target;
+  if(t.hasAttribute&&t.hasAttribute("data-grec")){
+    st.grec[st.state][t.getAttribute("data-grec")]=parseFloat(t.value)||0;
+    var rr=priced(), tt=totals(rr), gres=grecRun(rr,tt); if(gres) renderGrecOut(gres);
+    return;
+  }
+  if(t.id==="saved-q"){renderSavedList();return;}
+  var m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct"};
   if(m[t.id]){
     var v=parseFloat(t.value); if(isNaN(v)) v=0; if(t.id!=="s-pct"&&v<0) v=0; if(t.id==="s-pct"){ if(v<=-100) v=-99; if(v>300) v=300; }
     S[m[t.id]]=v; $("rate-now").textContent=rateText();
@@ -656,6 +714,163 @@ function priceSheet(useModels){
     '<div>'+block("Replacement",unitRows(function(p){return p.job==="RP";}))+block("Extras",extras)+'</div>'+
     '<div>'+block("New construction",unitRows(function(p){return p.job==="NC";}))+block("Versatec 300",vt3)+block("Versatec 700",vt7)+'</div></div>'+
     '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
+}
+
+
+/* ---------- saved estimates (kept in this browser) ---------- */
+var SAVED_KEY="nageo-est-saved";
+function loadSaved(){try{var a=JSON.parse(localStorage.getItem(SAVED_KEY)||"[]");return Array.isArray(a)?a:[];}catch(e){return [];}}
+function storeSaved(a){try{localStorage.setItem(SAVED_KEY,JSON.stringify(a));return true;}catch(e){return false;}}
+function snapshot(){
+  return {state:st.state,job:st.job,lines:st.lines.map(function(l){return {id:l.id,key:l.key,dbl:!!l.dbl};}),nextId:st.nextId,mdId:st.mdId,
+    addons:Object.assign({},st.addons),upMode:st.upMode,upCustom:st.upCustom,grec:JSON.parse(JSON.stringify(st.grec)),
+    cust:$("f-cust").value,addr:$("f-addr").value,notes:$("f-notes").value,S:{drill:S.drill,md:S.md,ded:S.ded,pct:S.pct}};
+}
+function saveEstimate(asNew){
+  var rows=priced(); if(!rows.length) return;
+  var t=totals(rows), list=loadSaved(), snap=snapshot();
+  var entry={id:(!asNew&&st.savedId)?st.savedId:"e"+Date.now(),savedAt:new Date().toISOString(),total:t.total,state:st.state,job:st.job,count:rows.length,cust:snap.cust,addr:snap.addr,snap:snap};
+  var idx=-1; list.forEach(function(e,i){if(e.id===entry.id) idx=i;});
+  if(idx>=0) list[idx]=entry; else list.push(entry);
+  var ok=storeSaved(list);
+  if(ok){ st.savedId=entry.id; if(st.opened) st.opened=entry.savedAt; $("msg").textContent="Saved. You can find it under Saved estimates at the top."; }
+  else $("msg").textContent="This browser would not save it. Check that private browsing is off.";
+  renderAll();
+}
+function openEstimate(id){
+  var e=null; loadSaved().forEach(function(x){if(x.id===id) e=x;});
+  if(!e) return;
+  var s=e.snap;
+  st.state=s.state; st.job=s.job; st.lines=s.lines.map(function(l){return {id:l.id,key:l.key,dbl:l.dbl};});
+  st.nextId=s.nextId; st.mdId=s.mdId; st.addons=Object.assign({},s.addons); st.upMode=s.upMode; st.upCustom=s.upCustom;
+  st.grec=s.grec||{}; st.savedId=e.id; st.opened=e.savedAt;
+  Object.assign(S,s.S);
+  $("f-cust").value=s.cust||""; $("f-addr").value=s.addr||""; $("f-notes").value=s.notes||"";
+  lastPick=null; $("saved").hidden=true; $("toggle-saved").setAttribute("aria-expanded","false");
+  $("msg").textContent="";
+  renderAll();
+  window.scrollTo(0,0);
+}
+function deleteEstimate(id,btn){
+  if(st.delArmed!==id){
+    st.delArmed=id; btn.textContent="Tap again to delete";
+    setTimeout(function(){ if(st.delArmed===id){st.delArmed=null; renderSavedList();} },4000);
+    return;
+  }
+  st.delArmed=null;
+  storeSaved(loadSaved().filter(function(x){return x.id!==id;}));
+  if(st.savedId===id) st.savedId=null;
+  renderAll();
+}
+function renderSaved(){
+  $("toggle-saved").textContent="Saved estimates ("+loadSaved().length+")";
+  renderSavedList();
+}
+function renderSavedList(){
+  var q=($("saved-q").value||"").toLowerCase().trim();
+  var list=loadSaved().sort(function(a,b){return a.savedAt<b.savedAt?1:-1;}).filter(function(e){
+    return !q||((e.cust||"")+" "+(e.addr||"")).toLowerCase().indexOf(q)>=0;
+  });
+  if(!list.length){ $("saved-list").innerHTML='<div class="empty">'+(q?"Nothing matches that search.":"No saved estimates yet. Build one and tap Save estimate.")+'</div>'; return; }
+  $("saved-list").innerHTML=list.map(function(e){
+    var title=e.cust||e.addr||"Untitled estimate";
+    var d=new Date(e.savedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+    var sub=[e.state==="MD"?"Maryland":"Virginia",JOBNAME[e.job]||"",e.count+(e.count===1?" unit":" units"),d].filter(Boolean).join(" · ");
+    if(e.cust&&e.addr) sub=e.addr+" · "+sub;
+    return '<div class="srow"><div style="min-width:0"><div class="sn">'+esc(title)+'</div><div class="ss">'+esc(sub)+'</div></div>'+
+      '<div class="sb"><span class="sp num">'+money(e.total)+'</span><button type="button" class="mini" data-open="'+esc(e.id)+'">Open</button>'+
+      '<button type="button" class="mini danger" data-del="'+esc(e.id)+'">'+(st.delArmed===e.id?"Tap again to delete":"Delete")+'</button></div></div>';
+  }).join("");
+}
+
+/* ---------- GREC calculators (one for each state) ----------
+   Leave a state as null and nothing shows for it. To add a calculator, fill in its entry:
+   VA: {
+     title:"Virginia GREC estimate",
+     note:"Small print shown under the results.",
+     fields:[ {id:"price", label:"Credit price", unit:"$", value:0, step:0.5} ],   // inputs the salesman can change
+     compute:function(v, ctx){   // v = the input values by id; ctx = {state, tons, cost, units:[{name,tons,job,kind}]}
+       return { headline:{label:"Estimated per year", value:1234, fmt:"$"},
+                rows:[ {label:"Credits per year", value:56, fmt:"n"}, {label:"Fee", value:10, fmt:"%"} ] };
+     }
+   }
+   fmt is "$" for dollars, "%" for percent, "n" for a plain number. ctx.tons counts every unit except air handlers. */
+var GREC_CALCULATORS = { VA:null, MD:null };
+
+function grecTons(rows){return rows.reduce(function(s,r){return s+(r.o.kind==="A"?0:r.o.tons);},0);}
+function grecRun(rows,t){
+  var def=st.state?GREC_CALCULATORS[st.state]:null;
+  if(!def||!rows.length) return null;
+  var g=st.grec[st.state]||(st.grec[st.state]={});
+  def.fields.forEach(function(f){ if(g[f.id]==null) g[f.id]=f.value; });
+  try{
+    var out=def.compute(g,{state:st.state,tons:grecTons(rows),cost:t.total,units:rows.map(function(r){return {name:optName(r.o),tons:r.o.tons,job:r.o.job,kind:r.o.kind};})});
+    return out?{def:def,out:out}:null;
+  }catch(err){return null;}
+}
+function fmtVal(v,f){
+  if(typeof v!=="number") return esc(v);
+  if(f==="$") return money(v);
+  if(f==="%") return (Math.round(v*100)/100)+"%";
+  return v.toLocaleString("en-US",{maximumFractionDigits:2});
+}
+function renderGrec(rows,t){
+  var res=grecRun(rows,t);
+  $("grec-card").hidden=!res;
+  if(!res) return;
+  $("grec-title").textContent=res.def.title;
+  var g=st.grec[st.state];
+  var inputs=res.def.fields.map(function(f){
+    return '<div><label class="lbl" for="g-'+esc(f.id)+'">'+esc(f.label)+'</label><div class="money">'+((f.unit==="$"||f.unit==="%")?'<i>'+f.unit+'</i>':'')+
+      '<input type="number" inputmode="decimal" id="g-'+esc(f.id)+'" data-grec="'+esc(f.id)+'" step="'+(f.step||1)+'" value="'+g[f.id]+'"></div></div>';
+  }).join("");
+  $("grec-body").innerHTML=(inputs?'<div class="fields">'+inputs+'</div>':'')+'<div id="grec-out"></div>';
+  renderGrecOut(res);
+}
+function renderGrecOut(res){
+  var o=res.out, h=o.headline;
+  $("grec-out").innerHTML=(h?'<div class="hero"><b class="num">'+fmtVal(h.value,h.fmt)+'</b><span>'+esc(h.label)+'</span></div>':'')+
+    ((o.rows&&o.rows.length)?'<div class="tblwrap"><table class="tbl"><tbody>'+o.rows.map(function(r){return '<tr><td>'+esc(r.label)+'</td><td class="num">'+fmtVal(r.value,r.fmt)+'</td></tr>';}).join("")+'</tbody></table></div>':'')+
+    (res.def.note?'<div class="note">'+esc(res.def.note)+'</div>':'');
+}
+
+/* ---------- customer summary (no HCP codes) ---------- */
+function makeCustomerSheet(){
+  var rows=priced(); if(!rows.length) return;
+  var t=totals(rows), up=upfrontAmt(t.total), L=leaseFor(t.total,up), gr=grecRun(rows,t);
+  var cust=$("f-cust").value.trim(), addr=$("f-addr").value.trim();
+  var today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  var items=rows.map(function(r){
+    return '<tr><td><b>'+esc(optName(r.o))+'</b><div class="s">'+esc(JOBNAME[r.o.job]||"Versatec")+' · '+tonsStr(r.o.tons)+' ton</div></td><td class="r">'+money(r.total)+'</td></tr>';
+  }).join("")+addonRows().map(function(a){return '<tr><td><b>'+esc(a.name)+'</b></td><td class="r">'+money(a.price)+'</td></tr>';}).join("")+
+    (t.md>0?'<tr><td><b>Maryland install</b></td><td class="r">'+money(t.md)+'</td></tr>':'');
+  var leaseBox='<div class="box"><h3>Lease option</h3><p>Through Upstream Lease, 20 years. Estimated payment about <b>'+money0(L.mo.typ)+' per month</b> (likely between '+money0(L.mo.low)+' and '+money0(L.mo.high)+'), plus sales tax'+(up>0?', with '+money0(up)+' paid upfront':', with nothing upfront')+'.</p>'+
+    '<p>If you choose to buy out the lease, the estimated buyout is about '+money0(L.b6.typ)+' after year 6 or about '+money0(L.b12.typ)+' after year 12.</p></div>';
+  var grecBox='';
+  if(gr){
+    var o=gr.out, h=o.headline;
+    grecBox='<div class="box"><h3>'+esc(gr.def.title)+'</h3>'+(h?'<p class="big">'+fmtVal(h.value,h.fmt)+' <span>'+esc(h.label)+'</span></p>':'')+
+      ((o.rows&&o.rows.length)?'<table class="kv">'+o.rows.map(function(r){return '<tr><td>'+esc(r.label)+'</td><td class="r">'+fmtVal(r.value,r.fmt)+'</td></tr>';}).join("")+'</table>':'')+
+      (gr.def.note?'<p class="s">'+esc(gr.def.note)+'</p>':'')+'</div>';
+  }
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>Your Geothermal Estimate</title><style>'+
+    '@page{size:letter;margin:.6in}*{box-sizing:border-box}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0}'+
+    '.hd{border-bottom:4px solid #0B5D5A;padding-bottom:10px;margin-bottom:14px}.co{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#555}h1{font-size:26px;margin:2px 0 0}h3{font-size:15px;margin:0 0 6px}'+
+    '.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:14px}.meta div{border-bottom:1px solid #bbb;padding:3px 0}.meta span{color:#666;font-size:11px;text-transform:uppercase;margin-right:6px}'+
+    'table{width:100%;border-collapse:collapse}td{padding:8px 4px;border-bottom:1px solid #ccc;vertical-align:top}.r{text-align:right;white-space:nowrap}.s{font-size:11px;color:#555;font-weight:400}'+
+    '.tot td{border-top:2px solid #333;border-bottom:none;font-size:17px;padding-top:10px}'+
+    '.box{margin-top:16px;border:1px solid #999;padding:10px 14px}.box p{margin:4px 0}.big{font-size:22px;font-weight:700}.big span{font-size:13px;font-weight:400;color:#444}.kv td{border:none;padding:2px 4px}'+
+    '.ft{margin-top:18px;font-size:11px;color:#555}'+
+    '</style></head><body>'+
+    '<div class="hd"><div class="co">North American Geothermal</div><h1>Your Geothermal Estimate</h1></div>'+
+    '<div class="meta"><div><span>Prepared for</span>'+esc(cust)+'&nbsp;</div><div><span>Date</span>'+esc(today)+'</div><div style="grid-column:1/3"><span>Property</span>'+esc(addr)+'&nbsp;</div></div>'+
+    '<h3>Your system</h3><table><tbody>'+items+'<tr class="tot"><td><b>Estimated total</b></td><td class="r"><b>'+money(t.total)+'</b></td></tr></tbody></table>'+
+    leaseBox+grecBox+
+    '<div class="ft">This is an estimate and not a contract. Final pricing is confirmed in your written proposal. Lease terms and payments are set by Upstream Lease after approval. '+
+    (gr?'Credit estimates depend on market prices and program rules and are not guaranteed.':'')+'</div>'+
+    '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
+  var slug=(cust||addr||"estimate").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"estimate";
+  openDoc(html,"NAGeo-customer-"+slug+".html","The customer summary opened in a new tab and the print window should appear.");
 }
 
 renderAll();

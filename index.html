@@ -164,6 +164,7 @@
   .opened{background:var(--primary-soft);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head><body>
 <div class="wrap">
   <header class="top">
@@ -204,9 +205,11 @@
 
   <section class="settings" id="saved" hidden>
     <h3>Saved estimates</h3>
-    <p class="hint" style="margin-top:4px">Saved on this device. Clearing the browser's data erases them.</p>
+    <div id="saved-auth"></div>
+    <div id="saved-main">
     <div style="margin-top:10px"><label class="lbl" for="saved-q">Search by name or address</label><input type="text" id="saved-q" autocomplete="off"></div>
     <div id="saved-list" style="margin-top:8px"></div>
+    </div>
   </section>
 
   <div class="layout">
@@ -584,6 +587,9 @@ document.addEventListener("click",function(e){
   }
   if(t.id==="btn-sheet"){makeSheet();return;}
   if(t.id==="btn-customer"){makeCustomerSheet();return;}
+  if(t.id==="btn-signin"){signIn();return;}
+  if(t.id==="btn-signout"){signOut();return;}
+  if(t.id==="btn-move"){moveLocal();return;}
   if(t.id==="btn-save"){saveEstimate(false);return;}
   if(t.id==="btn-save-new"){saveEstimate(true);return;}
   if(t.id==="toggle-saved"){var sv=$("saved"); sv.hidden=!sv.hidden; t.setAttribute("aria-expanded",String(!sv.hidden)); return;}
@@ -607,6 +613,7 @@ document.addEventListener("input",function(e){
     return;
   }
   if(t.id==="saved-q"){renderSavedList();return;}
+  if(t.id==="saved-by"){try{localStorage.setItem(USER_KEY,t.value.trim());}catch(err){}return;}
   var m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct"};
   if(m[t.id]){
     var v=parseFloat(t.value); if(isNaN(v)) v=0; if(t.id!=="s-pct"&&v<0) v=0; if(t.id==="s-pct"){ if(v<=-100) v=-99; if(v>300) v=300; }
@@ -639,15 +646,22 @@ function makeSheet(){
   }).join("");
   var ad=addonRows().map(function(a){return '<tr><td class="code">'+esc(a.code)+'</td><td><b>'+esc(a.name)+'</b></td><td class="r"></td><td class="r">'+money(a.price)+'</td><td class="r"></td><td class="r"><b>'+money(a.price)+'</b></td></tr>';}).join("");
   var mdRow = t.md>0 ? '<tr><td class="code">MDI</td><td><b>Maryland install</b></td><td class="r"></td><td class="r">'+money(t.md)+'</td><td class="r"></td><td class="r"><b>'+money(t.md)+'</b></td></tr>' : "";
-  var leaseBox = '<div class="lease"><h3>Lease estimate (Upstream, 20 years)</h3><table class="kv"><tr><td>System cost</td><td class="r">'+money0(t.total)+'</td><td>Monthly payment</td><td class="r"><b>'+money0(L.mo.typ)+'</b> <span class="s">('+money0(L.mo.low)+' to '+money0(L.mo.high)+')</span></td></tr>'+
-    '<tr><td>Upfront on lease</td><td class="r">'+money0(up)+'</td><td>Year 6 buyout</td><td class="r">'+money0(L.b6.typ)+'</td></tr>'+
-    '<tr><td>Deposit to collect</td><td class="r">'+money0(dep)+'</td><td>Year 12 buyout</td><td class="r">'+money0(L.b12.typ)+'</td></tr></table></div>';
+  var opts=[0,.1,.2].map(function(p){var u=Math.round(t.total*p);return {p:p,u:u,dep:Math.max(0,u-S.ded),L:leaseFor(t.total,u)};});
+  function lrow(lbl,f){return '<tr><td>'+lbl+'</td>'+opts.map(function(o,i){return '<td class="r'+(i===0?' pick':'')+'">'+f(o)+'</td>';}).join("")+'</tr>';}
+  var leaseBox = '<div class="lease"><h3>Lease estimate (Upstream, 20 years) &middot; system cost '+money0(t.total)+'</h3><table class="opt"><thead><tr><th></th>'+
+    opts.map(function(o,i){return '<th class="r'+(i===0?' pick':'')+'">'+Math.round(o.p*100)+'% down'+(i===0?' (selected)':'')+'</th>';}).join("")+'</tr></thead><tbody>'+
+    lrow('Upfront on lease',function(o){return money0(o.u);})+
+    lrow('Deposit to collect',function(o){return money0(o.dep);})+
+    lrow('Monthly payment',function(o){return '<b>'+money0(o.L.mo.typ)+'</b><div class="s">'+money0(o.L.mo.low)+' to '+money0(o.L.mo.high)+'</div>';})+
+    lrow('Year 6 buyout',function(o){return money0(o.L.b6.typ);})+
+    lrow('Year 12 buyout',function(o){return money0(o.L.b12.typ);})+
+    '</tbody></table></div>';
   var html='<!doctype html><html><head><meta charset="utf-8"><title>NAGeo Estimate Sheet</title><style>'+
     '@page{size:letter;margin:.5in}*{box-sizing:border-box}body{font:12px/1.35 Arial,Helvetica,sans-serif;color:#111;margin:0}'+
     'h1{font-size:20px;margin:0}h3{font-size:13px;margin:0 0 6px}.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0B5D5A;padding-bottom:8px;margin-bottom:10px}'+
     '.co{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#555}.meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin-bottom:10px}.meta div{border-bottom:1px solid #bbb;padding:2px 0}.meta span{color:#666;font-size:10px;text-transform:uppercase;margin-right:6px}'+
     'table{width:100%;border-collapse:collapse}th{font-size:10px;text-transform:uppercase;text-align:left;color:#555;border-bottom:2px solid #333;padding:4px}td{padding:5px 4px;border-bottom:1px solid #ccc;vertical-align:top}.r{text-align:right;white-space:nowrap}th.r{text-align:right}.code{font-family:Consolas,monospace;font-weight:700;white-space:nowrap}.s{font-size:10px;color:#555}'+
-    '.tot td{border-top:2px solid #333;border-bottom:none;font-size:14px;padding-top:7px}.lease{margin-top:12px;border:1px solid #999;padding:8px 10px}.kv td{border:none;padding:2px 4px}.kv td:nth-child(odd){color:#555}.kv td.r{text-align:right}'+
+    '.tot td{border-top:2px solid #333;border-bottom:none;font-size:14px;padding-top:7px}.lease{margin-top:12px;border:1px solid #999;padding:8px 10px}.kv td{border:none;padding:2px 4px}.kv td:nth-child(odd){color:#555}.kv td.r{text-align:right}.opt th,.opt td{padding:4px 6px;border-bottom:1px solid #ddd}.opt td:first-child{color:#555}.pick{background:#e3f1ef}'+
     '.notes{margin-top:12px;border:1px solid #999;padding:8px 10px;min-height:150px}.notes pre{white-space:pre-wrap;font:inherit;margin:0 0 6px}.rule{border-bottom:1px solid #ccc;height:22px}'+
     '.ft{margin-top:10px;font-size:10px;color:#666}'+
     '</style></head><body>'+
@@ -717,10 +731,35 @@ function priceSheet(useModels){
 }
 
 
-/* ---------- saved estimates (kept in this browser) ---------- */
-var SAVED_KEY="nageo-est-saved";
-function loadSaved(){try{var a=JSON.parse(localStorage.getItem(SAVED_KEY)||"[]");return Array.isArray(a)?a:[];}catch(e){return [];}}
-function storeSaved(a){try{localStorage.setItem(SAVED_KEY,JSON.stringify(a));return true;}catch(e){return false;}}
+/* ---------- saved estimates ----------
+   With SUPABASE_KEY filled in, estimates are saved to the shared list (everyone signed in sees them).
+   With it blank, they are saved in this browser only. */
+var SUPABASE_URL="https://hpgwwegjsxyxovdattoc.supabase.co";
+var SUPABASE_KEY="sb_publishable_D2PqYQoJjZ8koEM9NPvmeg_KB_Wa66H";   /* paste the project's anon public key here (see README) */
+var SAVED_KEY="nageo-est-saved", USER_KEY="nageo-est-user", TABLE="nageo_estimates";
+var sb=null, cloudUser=null, cache=[], cloudMsg="";
+try{ if(SUPABASE_KEY && window.supabase) sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY); }catch(e){ sb=null; }
+function localLoad(){try{var a=JSON.parse(localStorage.getItem(SAVED_KEY)||"[]");return Array.isArray(a)?a:[];}catch(e){return [];}}
+function localStore(a){try{localStorage.setItem(SAVED_KEY,JSON.stringify(a));return true;}catch(e){return false;}}
+function whoAmI(){try{return localStorage.getItem(USER_KEY)||"";}catch(e){return "";}}
+function useCloud(){return !!(sb&&cloudUser);}
+function loadSaved(){return useCloud()?cache:localLoad();}
+function toRow(e){return {id:e.id,saved_at:e.savedAt,saved_by:e.by||"",cust:e.cust||"",addr:e.addr||"",state:e.state,job:e.job,total:e.total,unit_count:e.count,snap:e.snap};}
+function fromRow(r){return {id:r.id,savedAt:r.saved_at,by:r.saved_by||"",cust:r.cust,addr:r.addr,state:r.state,job:r.job,total:Number(r.total),count:r.unit_count,snap:r.snap};}
+function refreshCloud(){
+  if(!useCloud()) return Promise.resolve();
+  return sb.from(TABLE).select("*").order("saved_at",{ascending:false}).then(function(res){
+    if(res.error){cloudMsg="Could not load the shared list: "+res.error.message;}
+    else{cache=res.data.map(fromRow);cloudMsg="";}
+    renderAll();
+  });
+}
+if(sb){
+  sb.auth.getSession().then(function(r){
+    cloudUser=(r.data&&r.data.session)?r.data.session.user:null;
+    if(cloudUser) refreshCloud(); else renderAll();
+  });
+}
 function snapshot(){
   return {state:st.state,job:st.job,lines:st.lines.map(function(l){return {id:l.id,key:l.key,dbl:!!l.dbl};}),nextId:st.nextId,mdId:st.mdId,
     addons:Object.assign({},st.addons),upMode:st.upMode,upCustom:st.upCustom,grec:JSON.parse(JSON.stringify(st.grec)),
@@ -728,14 +767,27 @@ function snapshot(){
 }
 function saveEstimate(asNew){
   var rows=priced(); if(!rows.length) return;
-  var t=totals(rows), list=loadSaved(), snap=snapshot();
-  var entry={id:(!asNew&&st.savedId)?st.savedId:"e"+Date.now(),savedAt:new Date().toISOString(),total:t.total,state:st.state,job:st.job,count:rows.length,cust:snap.cust,addr:snap.addr,snap:snap};
-  var idx=-1; list.forEach(function(e,i){if(e.id===entry.id) idx=i;});
-  if(idx>=0) list[idx]=entry; else list.push(entry);
-  var ok=storeSaved(list);
-  if(ok){ st.savedId=entry.id; if(st.opened) st.opened=entry.savedAt; $("msg").textContent="Saved. You can find it under Saved estimates at the top."; }
-  else $("msg").textContent="This browser would not save it. Check that private browsing is off.";
-  renderAll();
+  if(sb&&!cloudUser){
+    $("saved").hidden=false; $("toggle-saved").setAttribute("aria-expanded","true");
+    $("msg").textContent="Please sign in under Saved estimates first, then tap Save again."; renderAll(); return;
+  }
+  var t=totals(rows), snap=snapshot();
+  var entry={id:(!asNew&&st.savedId)?st.savedId:"e"+Date.now(),savedAt:new Date().toISOString(),by:whoAmI(),total:t.total,state:st.state,job:st.job,count:rows.length,cust:snap.cust,addr:snap.addr,snap:snap};
+  function localSave(){
+    var list=localLoad(), idx=-1; list.forEach(function(e,i){if(e.id===entry.id) idx=i;});
+    if(idx>=0) list[idx]=entry; else list.push(entry);
+    return localStore(list);
+  }
+  function done(ok,text){ if(ok){st.savedId=entry.id; if(st.opened) st.opened=entry.savedAt;} $("msg").textContent=text; renderAll(); }
+  if(useCloud()){
+    sb.from(TABLE).upsert(toRow(entry)).then(function(res){
+      if(res.error){ var ok=localSave(); done(ok,"Could not reach the shared list, so it was saved on this device only."); return; }
+      var i=-1; cache.forEach(function(e,k){if(e.id===entry.id) i=k;}); if(i>=0) cache[i]=entry; else cache.unshift(entry);
+      done(true,"Saved to the shared list. Everyone signed in can open it under Saved estimates.");
+    });
+  } else {
+    done(localSave(), "Saved on this device. You can find it under Saved estimates at the top.");
+  }
 }
 function openEstimate(id){
   var e=null; loadSaved().forEach(function(x){if(x.id===id) e=x;});
@@ -758,30 +810,75 @@ function deleteEstimate(id,btn){
     return;
   }
   st.delArmed=null;
-  storeSaved(loadSaved().filter(function(x){return x.id!==id;}));
-  if(st.savedId===id) st.savedId=null;
-  renderAll();
+  function after(){ if(st.savedId===id) st.savedId=null; renderAll(); }
+  if(useCloud()){
+    sb.from(TABLE).delete().eq("id",id).then(function(res){
+      if(res.error){$("msg").textContent="Could not delete: "+res.error.message;return;}
+      cache=cache.filter(function(x){return x.id!==id;}); after();
+    });
+  } else { localStore(localLoad().filter(function(x){return x.id!==id;})); after(); }
+}
+function moveLocal(){
+  var mine=localLoad(); if(!mine.length||!useCloud()) return;
+  sb.from(TABLE).upsert(mine.map(function(e){e.by=e.by||whoAmI();return toRow(e);})).then(function(res){
+    if(res.error){cloudMsg="Could not move them: "+res.error.message;renderAll();return;}
+    localStore([]); refreshCloud();
+  });
+}
+function signIn(){
+  var em=$("sa-email").value.trim(), pw=$("sa-pass").value;
+  if(!em||!pw){cloudMsg="Enter the email and password.";renderSavedAuth();return;}
+  cloudMsg="Signing in...";renderSavedAuth();
+  sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){
+    if(r.error){cloudMsg="That did not work. Check the email and password.";renderSavedAuth();return;}
+    cloudUser=r.data.user;cloudMsg="";refreshCloud();
+  });
+}
+function signOut(){ sb.auth.signOut().then(function(){cloudUser=null;cache=[];cloudMsg="";renderAll();}); }
+function renderSavedAuth(){
+  var el=$("saved-auth"), main=$("saved-main");
+  if(!sb){ el.innerHTML='<p class="hint" style="margin-top:4px">Saved on this device only. Clearing the browser\'s data erases them.</p>'; main.hidden=false; return; }
+  if(!cloudUser){
+    main.hidden=true;
+    var oe=$("sa-email"), em0=oe?oe.value:"";
+    el.innerHTML='<p class="hint" style="margin-top:4px">Sign in to save and see the shared list of estimates.</p>'+
+      '<div class="fields" style="margin-top:10px"><div><label class="lbl" for="sa-email">Email</label><input type="email" id="sa-email" autocomplete="username" value="'+esc(em0)+'"></div>'+
+      '<div><label class="lbl" for="sa-pass">Password</label><input type="password" id="sa-pass" autocomplete="current-password"></div></div>'+
+      '<div style="margin-top:10px"><button type="button" class="btn" id="btn-signin">Sign in</button></div>'+
+      (cloudMsg?'<p class="hint">'+esc(cloudMsg)+'</p>':'');
+    return;
+  }
+  main.hidden=false;
+  var n=localLoad().length;
+  el.innerHTML='<p class="hint" style="margin-top:4px">Shared list: everyone who signs in sees these. <button type="button" class="linkbtn" id="btn-signout">Sign out</button></p>'+
+    '<div style="margin-top:8px"><label class="lbl" for="saved-by">Your name (shown on the estimates you save)</label><input type="text" id="saved-by" autocomplete="off" value="'+esc(whoAmI())+'"></div>'+
+    (n?'<div style="margin-top:10px"><button type="button" class="mini" id="btn-move">Move the '+n+' estimate'+(n===1?'':'s')+' saved on this device to the shared list</button></div>':'')+
+    (cloudMsg?'<p class="hint">'+esc(cloudMsg)+'</p>':'');
 }
 function renderSaved(){
-  $("toggle-saved").textContent="Saved estimates ("+loadSaved().length+")";
+  $("toggle-saved").textContent="Saved estimates ("+(sb&&!cloudUser?"sign in":loadSaved().length)+")";
+  var ai=document.activeElement?document.activeElement.id:"";
+  if(!(cloudUser?ai==="saved-by":(ai==="sa-email"||ai==="sa-pass"))) renderSavedAuth();
   renderSavedList();
 }
 function renderSavedList(){
   var q=($("saved-q").value||"").toLowerCase().trim();
-  var list=loadSaved().sort(function(a,b){return a.savedAt<b.savedAt?1:-1;}).filter(function(e){
+  var list=loadSaved().slice().sort(function(a,b){return a.savedAt<b.savedAt?1:-1;}).filter(function(e){
     return !q||((e.cust||"")+" "+(e.addr||"")).toLowerCase().indexOf(q)>=0;
   });
   if(!list.length){ $("saved-list").innerHTML='<div class="empty">'+(q?"Nothing matches that search.":"No saved estimates yet. Build one and tap Save estimate.")+'</div>'; return; }
   $("saved-list").innerHTML=list.map(function(e){
     var title=e.cust||e.addr||"Untitled estimate";
     var d=new Date(e.savedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-    var sub=[e.state==="MD"?"Maryland":"Virginia",JOBNAME[e.job]||"",e.count+(e.count===1?" unit":" units"),d].filter(Boolean).join(" · ");
+    var sub=[e.state==="MD"?"Maryland":"Virginia",JOBNAME[e.job]||"",e.count+(e.count===1?" unit":" units"),d,e.by?("by "+e.by):""].filter(Boolean).join(" · ");
     if(e.cust&&e.addr) sub=e.addr+" · "+sub;
     return '<div class="srow"><div style="min-width:0"><div class="sn">'+esc(title)+'</div><div class="ss">'+esc(sub)+'</div></div>'+
       '<div class="sb"><span class="sp num">'+money(e.total)+'</span><button type="button" class="mini" data-open="'+esc(e.id)+'">Open</button>'+
       '<button type="button" class="mini danger" data-del="'+esc(e.id)+'">'+(st.delArmed===e.id?"Tap again to delete":"Delete")+'</button></div></div>';
   }).join("");
 }
+
+document.addEventListener("keydown",function(e){ if(e.key==="Enter"&&e.target&&e.target.id==="sa-pass") signIn(); });
 
 /* ---------- GREC calculators (one for each state) ----------
    Leave a state as null and nothing shows for it. To add a calculator, fill in its entry:

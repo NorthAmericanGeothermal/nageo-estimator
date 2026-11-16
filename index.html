@@ -209,6 +209,14 @@
         <label class="lbl" for="s-ded">Lease deposit reduction</label>
         <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-ded" min="0" step="100"></div>
       </div>
+      <div>
+        <label class="lbl" for="s-grecva">GREC price, Virginia (per credit)</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-grecva" min="0" step="1"></div>
+      </div>
+      <div>
+        <label class="lbl" for="s-grecmd">GREC price, Maryland (per credit)</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-grecmd" min="0" step="1"></div>
+      </div>
     </div>
     <p class="hint">The HCP price list is built on <span id="sheet-rate"></span> of drilling per ton. When you change the drilling price, every unit moves by the difference times its tons.</p>
   </section>
@@ -317,9 +325,9 @@ var POOL = [[114, 100000.0, 50000.0, 59.31, 4485.92, 3416.0], [116, 114900.0, 14
    pct = overall percentage added to every unit price (0 = none, -5 = 5% discount).
    SHEET_DRILL = the drilling rate already built into the HCP price sheet. Only change it
    if the price sheet itself is rebuilt on a different rate. */
-var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0};
+var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0, grecVA:90, grecMD:84};   // grecVA / grecMD = price per GREC (1 MWh) used to project GREC income. MD: Flett Exchange Maryland GREC 2026 vintage, $84.00 on 11/16/2026.
 var SHEET_DRILL = 4200;
-var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, pct:DEFAULTS.pct};
+var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, pct:DEFAULTS.pct, grecVA:DEFAULTS.grecVA, grecMD:DEFAULTS.grecMD};
 var st = {state:null, job:null, lines:[], nextId:1, mdId:null, addons:{}, upMode:"0", upCustom:0, armed:false, grec:{}, savedId:null, opened:null, delArmed:null};
 
 var JOBNAME = {RF:"Retrofit", RP:"Replacement", NC:"New construction"};
@@ -433,7 +441,7 @@ function rateText(){
 function renderRate(){
   $("sheet-rate").textContent=money(SHEET_DRILL);
   $("rate-now").textContent=rateText();
-  [["s-drill","drill"],["s-md","md"],["s-ded","ded"],["s-pct","pct"]].forEach(function(p){
+  [["s-drill","drill"],["s-md","md"],["s-ded","ded"],["s-pct","pct"],["s-grecva","grecVA"],["s-grecmd","grecMD"]].forEach(function(p){
     var el=$(p[0]); if(document.activeElement!==el) el.value=S[p[1]];
   });
 }
@@ -521,7 +529,7 @@ function renderLease(cost){
   var modes=[["0","$0 down"],["10","10% down"],["20","20% down"],["custom","Other"]];
   var segs='<div class="seg" role="group" aria-label="Money down">'+modes.map(function(m){return '<button type="button" data-up="'+m[0]+'" aria-pressed="'+(st.upMode===m[0])+'">'+m[1]+'</button>';}).join("")+'</div>';
   var custom = st.upMode==="custom" ? '<div class="money" style="max-width:240px"><i>$</i><input type="number" inputmode="decimal" id="f-upcustom" min="0" step="500" value="'+(st.upCustom||"")+'" aria-label="Down payment in dollars" placeholder="Down payment"></div>' : "";
-  var y6tot=up+5*annual+L.b6.typ, y12tot=up+11*annual+L.b12.typ, fulltot=up+20*annual;
+  var y6tot=dep+5*annual+L.b6.typ, y12tot=dep+11*annual+L.b12.typ, fulltot=dep+20*annual;   // what the customer actually pays: the deposit collected (upfront less the reduction) plus the lease payments
   body.innerHTML=
     '<p class="sub">20 year lease through Upstream. Estimate from '+L.n+' similar '+(st.state==="MD"?"Maryland ":"")+'NAGeo quotes.</p>'+segs+custom+
     '<div class="hero"><b class="num">'+money0(L.mo.typ)+'</b><span>per month, plus sales tax</span></div>'+
@@ -537,7 +545,13 @@ function renderLease(cost){
       '<tr><td>Buys out in year 12</td><td class="num">'+money0(y12tot)+'</td></tr>'+
       '<tr><td>Keeps the lease 20 years</td><td class="num">'+money0(fulltot)+'</td></tr>'+
     '</tbody></table></div>'+
-    '<div class="dep num">Upfront on the lease: <b>'+money0(up)+'</b>. Deposit to collect from the customer: <b>'+money0(dep)+'</b> (after the '+money0(S.ded)+' reduction).</div>'+
+    '<div class="tblwrap"><table class="tbl"><tbody>'+
+      '<tr><td>Job total</td><td class="num">'+money0(cost)+'</td></tr>'+
+      '<tr><td>Upfront on the lease</td><td class="num">'+money0(up)+'</td></tr>'+
+      '<tr><td>Less deposit reduction</td><td class="num">'+(up>0?'&minus;'+money0(Math.min(up,S.ded)):money0(0))+'</td></tr>'+
+      '<tr><td>Deposit to collect from the customer</td><td class="num">'+money0(dep)+'</td></tr>'+
+      '<tr><td>Job total less the deposit</td><td class="num">'+money0(cost-dep)+'</td></tr>'+
+    '</tbody></table></div>'+
     '<div class="note">Estimates only. Upstream sets the final payment after underwriting, so two similar jobs can differ.</div>';
 }
 function renderAll(){
@@ -551,19 +565,19 @@ function renderAll(){
 
 /* ---------- settings storage ---------- */
 function devicePrices(){
-  var o={drill:DEFAULTS.drill,md:DEFAULTS.md,ded:DEFAULTS.ded,pct:DEFAULTS.pct};
-  try{var r=localStorage.getItem("nageo-est-prices"); if(r){var d=JSON.parse(r); ["drill","md","ded"].forEach(function(k){if(typeof d[k]==="number"&&d[k]>=0)o[k]=d[k];}); if(typeof d.pct==="number"&&d.pct>-100&&d.pct<=300)o.pct=d.pct;}}catch(e){}
+  var o={drill:DEFAULTS.drill,md:DEFAULTS.md,ded:DEFAULTS.ded,pct:DEFAULTS.pct,grecVA:DEFAULTS.grecVA,grecMD:DEFAULTS.grecMD};
+  try{var r=localStorage.getItem("nageo-est-prices"); if(r){var d=JSON.parse(r); ["drill","md","ded","grecVA","grecMD"].forEach(function(k){if(typeof d[k]==="number"&&d[k]>=0)o[k]=d[k];}); if(typeof d.pct==="number"&&d.pct>-100&&d.pct<=300)o.pct=d.pct;}}catch(e){}
   return o;
 }
 function saveSettings(){
   if(st.opened){$("save-status").textContent="These prices apply to this opened estimate. Save the estimate to keep them.";return;}
-  var data={drill:S.drill,md:S.md,ded:S.ded,pct:S.pct};
+  var data={drill:S.drill,md:S.md,ded:S.ded,pct:S.pct,grecVA:S.grecVA,grecMD:S.grecMD};
   try{localStorage.setItem("nageo-est-prices",JSON.stringify(data));}catch(e){}
   $("save-status").textContent="Saved on this device. To change the starting prices for everyone, edit DEFAULTS in index.html.";
 }
 function applySettings(d){
   if(!d) return;
-  ["drill","md","ded"].forEach(function(k){ if(typeof d[k]==="number"&&isFinite(d[k])&&d[k]>=0) S[k]=d[k]; });
+  ["drill","md","ded","grecVA","grecMD"].forEach(function(k){ if(typeof d[k]==="number"&&isFinite(d[k])&&d[k]>=0) S[k]=d[k]; });
   if(typeof d.pct==="number"&&isFinite(d.pct)&&d.pct>-100&&d.pct<=300) S.pct=d.pct;
 }
 try{var raw=localStorage.getItem("nageo-est-prices"); if(raw) applySettings(JSON.parse(raw));}catch(e){}
@@ -634,7 +648,7 @@ document.addEventListener("input",function(e){
   }
   if(t.id==="saved-q"){renderSavedList();return;}
   if(t.id==="saved-by"){try{localStorage.setItem(USER_KEY,t.value.trim());}catch(err){}return;}
-  var m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct"};
+  var m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct","s-grecva":"grecVA","s-grecmd":"grecMD"};
   if(m[t.id]){
     var v=parseFloat(t.value); if(isNaN(v)) v=0; if(t.id!=="s-pct"&&v<0) v=0; if(t.id==="s-pct"){ if(v<=-100) v=-99; if(v>300) v=300; }
     S[m[t.id]]=v; $("rate-now").textContent=rateText();
@@ -657,7 +671,7 @@ function legalHtml(size){
   return '<div class="legal" style="margin-top:14px;border-top:1px solid #999;padding-top:7px;font-size:'+(size||9)+'px;line-height:1.35;color:#444">'+
    '<b>ESTIMATE ONLY. NOT A CONTRACT OR A BINDING OFFER.</b> This document is a good-faith estimate prepared from the information available on the date shown. '+
    'Prices, products, availability and terms are subject to change without notice and are not guaranteed until confirmed in a written proposal or contract signed by both North American Geothermal and the customer. '+
-   'The final price may change after a site evaluation and for reasons such as soil and rock conditions, drilling depth, existing equipment and ductwork, electrical and permit requirements, equipment selection, and changes in scope. '+
+   'The final price may change after a site evaluation and for reasons such as site and ground conditions, existing equipment and ductwork, electrical and permit requirements, equipment selection, and changes in scope. '+
    'Lease amounts, buyouts and terms are estimates only; Upstream Lease sets the final payment and terms and all leases are subject to credit approval and Upstream Lease underwriting. '+
    'Any renewable energy credit (GREC) figures are estimates only; credits are issued by the PJM-GATS administrator, depend on program rules and market prices, and are not guaranteed. '+
    'Tax credits, rebates and other incentives depend on each customer\'s own eligibility, and North American Geothermal does not give tax or legal advice; please consult a qualified professional. '+
@@ -703,6 +717,7 @@ function makeSheet(){
     '<tr class="tot"><td colspan="5" class="r"><b>Estimate total</b></td><td class="r"><b>'+money(t.total)+'</b></td></tr></tbody></table>'+
     leaseBox+
     '<div class="notes"><h3>Notes and items to price</h3>'+(notes?'<pre>'+esc(notes)+'</pre>':'')+'<div class="rule"></div><div class="rule"></div><div class="rule"></div><div class="rule"></div></div>'+
+    (function(){var gr=grecRun(rows,t);return gr&&gr.out?'<div style="margin-top:10px;font-size:12px"><b>Projected GRECs:</b> '+fmtVal(gr.out.calc.grecs,"n")+' per year at '+money(gr.out.price)+' each = <b>'+money0(gr.out.value)+' per year</b> ('+(st.state==="MD"?"Maryland":"Virginia")+' price).</div>':'';})()+
     legalHtml(8.5)+'<div class="ft">Drilling priced at '+money(S.drill)+' per ton. HCP prices are built on '+money(SHEET_DRILL)+' per ton. Adjustments are the drilling price change'+(S.pct?' and the '+S.pct+'% overall change':'')+'. Lease figures are estimates from past Upstream quotes; Upstream sets the final payment.</div>'+
     '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
   var slug=(cust||addr||"estimate").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"estimate";
@@ -795,7 +810,7 @@ if(sb){
 function snapshot(){
   return {state:st.state,job:st.job,lines:st.lines.map(function(l){return {id:l.id,key:l.key,dbl:!!l.dbl};}),nextId:st.nextId,mdId:st.mdId,
     addons:Object.assign({},st.addons),upMode:st.upMode,upCustom:st.upCustom,grec:JSON.parse(JSON.stringify(st.grec)),
-    cust:$("f-cust").value,addr:$("f-addr").value,notes:$("f-notes").value,S:{drill:S.drill,md:S.md,ded:S.ded,pct:S.pct}};
+    cust:$("f-cust").value,addr:$("f-addr").value,notes:$("f-notes").value,S:{drill:S.drill,md:S.md,ded:S.ded,pct:S.pct,grecVA:S.grecVA,grecMD:S.grecMD}};
 }
 function saveEstimate(asNew){
   var rows=priced(); if(!rows.length) return;
@@ -955,8 +970,9 @@ function gCompute(g){
 function grecRun(rows,t){
   if(!rows.length||!st.state) return null;
   var r=gCompute(gG()); if(!r) return null;
-  var out={headline:{label:"MWh of GRECs per year (about "+(Math.round(r.monthly*100)/100)+" per month)",value:r.grecs,fmt:"n"},
-    rows:[{label:"GRECs per month",value:r.monthly,fmt:"n"},{label:"Whole GRECs per year (GATS reports)",value:r.pattern.reduce(function(a,b){return a+b;},0),fmt:"n"}],pattern:r.pattern,calc:r};
+  var price=st.state==="MD"?S.grecMD:S.grecVA, val=r.grecs*price;
+  var out={headline:{label:"projected per year in GRECs ("+(Math.round(r.grecs*100)/100)+" GRECs at "+money(price)+" each)",value:val,fmt:"$"},
+    rows:[{label:"GRECs per year (MWh)",value:r.grecs,fmt:"n"},{label:"GRECs per month",value:r.monthly,fmt:"n"},{label:"Price per GREC used",value:price,fmt:"$"},{label:"Projected value per month",value:val/12,fmt:"$"},{label:"Whole GRECs per year (GATS reports)",value:r.pattern.reduce(function(a,b){return a+b;},0),fmt:"n"}],pattern:r.pattern,calc:r,price:price,value:val};
   var notes=["Estimate of the renewable energy credits this system can earn. Credits are issued by the PJM-GATS administrator and depend on program rules and market prices, so nothing here is guaranteed."];
   if(r.capped) notes.unshift("The result is held to what the equipment can deliver at its rated size.");
   if(r.cls!==1) notes.unshift("This system is over 50 rated tons, so the figure is indicative only.");
@@ -1040,7 +1056,8 @@ function makeCustomerSheet(){
   var grecBox='';
   if(gr){
     var o=gr.out, c=o.calc, mdl=c.fleet.map(function(f){return f.q+" x WaterFurnace "+f.m.key;}).join(", ");
-    grecBox='<div class="box"><h3>Renewable energy credits (GRECs)</h3><p class="big">'+fmtVal(o.headline.value,"n")+' <span>GRECs per year, about '+fmtVal(c.monthly,"n")+' each month</span></p>'+
+    grecBox='<div class="box"><h3>Renewable energy credits (GRECs)</h3><p class="big">'+money0(o.value)+' <span>projected per year in GRECs</span></p>'+
+      '<table class="kv"><tr><td>Projected GRECs per year</td><td class="r">'+fmtVal(c.grecs,"n")+' (about '+fmtVal(c.monthly,"n")+' per month)</td></tr><tr><td>Estimated price per GREC</td><td class="r">'+money(o.price)+'</td></tr></table>'+
       '<table class="kv"><tr><td>Home size used</td><td class="r">'+Math.round(gG().sqft).toLocaleString("en-US")+' sq ft</td></tr><tr><td>Equipment</td><td class="r">'+esc(mdl)+'</td></tr></table>'+
       '<div class="s" style="margin:8px 0 2px">Whole GRECs reported each month</div>'+gSchedule(o.pattern,"gs")+
       '<p class="s">'+esc(gr.def.note)+'</p></div>';

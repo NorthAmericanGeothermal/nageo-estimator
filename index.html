@@ -325,7 +325,7 @@
     <div class="col-right">
       <div class="tabs" id="tabs" role="group" aria-label="Estimate sections">
         <button type="button" data-tabgo="est" aria-pressed="true">Estimate</button>
-        <button type="button" data-tabgo="ll" aria-pressed="false">LoopLink</button>
+        <button type="button" data-tabgo="ll" aria-pressed="false">System Design</button>
       </div>
       <section class="card est" data-tab="est">
         <h2>Estimate</h2>
@@ -345,7 +345,7 @@
       </section>
 
       <section class="card" id="size-card" data-tab="ll">
-        <h2>LoopLink</h2>
+        <h2>System Design</h2>
         <div id="ll-head"></div>
         <div id="size-body"></div>
         <div id="ll-charts"></div>
@@ -393,7 +393,7 @@ var POOL = [[114, 100000.0, 50000.0, 59.31, 4485.92, 3416.0], [116, 114900.0, 14
    pct = overall percentage added to every unit price (0 = none, -5 = 5% discount).
    SHEET_DRILL = the drilling rate already built into the HCP price sheet. Only change it
    if the price sheet itself is rebuilt on a different rate. */
-var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0, grecVA:90, grecMD:84, szAdd:15, szSqft:600, qAdd:5, qHeat:14, qCool:91, kwh:0.18, therm:1.6, prop:3.0, oil:4.0};   // szAdd = % added to square footage for things missed; szSqft = square feet per ton (starting value, change it to your rule of thumb)   // grecVA / grecMD = price per GREC (1 MWh) used to project GREC income. MD: Flett Exchange Maryland GREC 2026 vintage, $84.00 on 11/16/2026.
+var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0, grecVA:90, grecMD:84, szAdd:15, szSqft:750, qAdd:5, qHeat:14, qCool:91, kwh:0.18, therm:1.6, prop:3.0, oil:4.0};   // szAdd = % added to square footage for things missed; szSqft = square feet per ton (starting value, change it to your rule of thumb)   // grecVA / grecMD = price per GREC (1 MWh) used to project GREC income. MD: Flett Exchange Maryland GREC 2026 vintage, $84.00 on 11/16/2026.
 var SHEET_DRILL = 4200;
 var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, pct:DEFAULTS.pct, grecVA:DEFAULTS.grecVA, grecMD:DEFAULTS.grecMD, szAdd:DEFAULTS.szAdd, szSqft:DEFAULTS.szSqft,qAdd:DEFAULTS.qAdd,qHeat:DEFAULTS.qHeat,qCool:DEFAULTS.qCool,kwh:DEFAULTS.kwh,therm:DEFAULTS.therm,prop:DEFAULTS.prop,oil:DEFAULTS.oil};
 var st = {state:null, job:null, lines:[], nextId:1, mdId:null, addons:{}, upMode:"0", upCustom:0, armed:false, grec:{}, size:null, savedId:null, opened:null, delArmed:null};
@@ -703,7 +703,7 @@ function renderSizing(rows){
   var card=$("size-card"); card.hidden=false;
   llHead(rows);
   if(!rows.length||!st.state){
-    $("size-body").innerHTML='<p class="sub">Add the units for this job on the Estimate tab first. This tab is tied to the units in that estimate, so you can do the LoopLink work before the customer visit and save it with the estimate.</p><button type="button" class="linkbtn" data-tabgo="est">Go to the Estimate tab</button>';
+    $("size-body").innerHTML='<p class="sub">Add the units for this job on the Estimate tab first. This tab is tied to the units in that estimate, so you can do the system design before the customer visit and save it with the estimate.</p><button type="button" class="linkbtn" data-tabgo="est">Go to the Estimate tab</button>';
     $("ll-charts").innerHTML=""; return;
   }
   var z=szS(), one=z.areas.length===1;
@@ -1592,7 +1592,7 @@ function makeDesignSheet(){
   var rows=priced(); if(!rows.length) return;
   var z=szS(), one=z.areas.length===1;
   var list=z.areas.map(function(a){return dsArea(a,z,one);}).filter(Boolean);
-  if(!list.length){$("msg").textContent="Enter the loads or square footage in the LoopLink check and assign a unit to each area first.";return;}
+  if(!list.length){$("msg").textContent="Enter the loads or square footage in the System Design tab and assign a unit to each area first.";return;}
   var cust=$("f-cust").value.trim(), addr=$("f-addr").value.trim();
   var today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
   var mj=z.mode!=="sqft", N=function(n){return Math.round(n).toLocaleString("en-US");};

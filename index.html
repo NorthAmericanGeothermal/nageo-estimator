@@ -160,6 +160,9 @@
   .szhead{display:flex;gap:10px;align-items:center;justify-content:space-between}
   .szname{flex:1;min-width:0;font-weight:700;font-size:16px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
   .tabs{display:flex;gap:8px;margin-bottom:12px}.tabs button{flex:1;font:inherit;font-weight:700;font-size:17px;padding:13px 10px;border:2px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);cursor:pointer;min-height:50px}.tabs button[aria-pressed=true]{background:#0B5D5A;border-color:#0B5D5A;color:#fff}.tabhide{display:none!important}.llhead{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:15px}#ll-charts h3{font-size:15px;margin:16px 0 4px}
+  .cbox{border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin-top:14px;background:var(--card)}.ct{font-weight:700;font-size:16px}.cs{font-size:13px;color:var(--faint);margin:2px 0 8px}.cn{font-size:12.5px;color:var(--faint);margin-top:8px;line-height:1.4}
+  .leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;margin:2px 0 8px}.leg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .cmp{margin-top:6px}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.chip{font:inherit;font-size:14px;font-weight:600;padding:8px 13px;border-radius:999px;border:2px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;min-height:40px}.chip[aria-pressed=true]{background:#0B5D5A;border-color:#0B5D5A;color:#fff}
   .szmore{margin-top:10px}.szmore summary{cursor:pointer;color:var(--teal,#0B5D5A);font-weight:600;padding:8px 0}
   .szgrid select{font-size:16px;min-height:44px;padding:8px}
   .szgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
@@ -250,20 +253,24 @@
         <label class="lbl" for="s-qcool">House questions: summer outdoor design temp</label>
         <div class="money"><input type="number" inputmode="decimal" id="s-qcool" step="1"><i>&deg;F</i></div>
       </div>
+    </div>
+    <h3 style="margin-top:20px">Energy prices for the design summary</h3>
+    <p class="hint" style="margin-top:4px">Used for the yearly operating cost and carbon charts. Electric resistance and air-source heat pumps use the electricity price.</p>
+    <div class="grid2">
       <div>
-        <label class="lbl" for="s-kwh">Design summary: electricity price per kWh</label>
+        <label class="lbl" for="s-kwh">Electricity, $ per kWh</label>
         <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-kwh" min="0" step="0.01"></div>
       </div>
       <div>
-        <label class="lbl" for="s-therm">Design summary: natural gas price per therm</label>
+        <label class="lbl" for="s-therm">Natural gas, $ per therm</label>
         <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-therm" min="0" step="0.05"></div>
       </div>
       <div>
-        <label class="lbl" for="s-prop">Design summary: propane price per gallon</label>
+        <label class="lbl" for="s-prop">Propane, $ per gallon</label>
         <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-prop" min="0" step="0.05"></div>
       </div>
       <div>
-        <label class="lbl" for="s-oil">Design summary: fuel oil price per gallon</label>
+        <label class="lbl" for="s-oil">Fuel oil, $ per gallon</label>
         <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-oil" min="0" step="0.05"></div>
       </div>
     </div>
@@ -482,10 +489,11 @@ var CUR_UNITS = {"W5AV024":[19400,25000,4.1,19.2],"W5AV030":[24600,32300,4.0,20.
 // Rules used by the check (all from NAGeo's past LoopLink designs):
 //  - tons needed: quick mode = (square feet + extra %) / square feet per ton; Manual J mode = the larger of heating and cooling load / 12,000.
 //  - a unit is "too small" if its rated heating or cooling capacity is under 90% of that load, and "larger than needed" if cooling is over 130% of the cooling load.
-//  - loop field: NAGeo rule of 160 feet of bore per installed ton (a 5 ton unit gets 800 ft in total), every bore the same depth, each bore between 300 and 420 feet.
+//  - loop field: NAGeo rule of 160 feet of bore per installed ton (a 5 ton unit gets 800 ft in total), every bore the same depth, no bore deeper than 420 feet (most jobs land between 300 and 420).
 var SZ_FIT_LO=0.9, SZ_COOL_HI=1.3, SZ_FT_TON=160, SZ_BORE_MIN=300, SZ_BORE_MAX=420;
 function szS(){
   if(!st.size) st.size={mode:"sqft",areas:[],nextArea:1};
+  if(!st.size.cmp) st.size.cmp={res:true,ashp:true,gas:true,prop:true,oil:true};
   var z=st.size;
   if(!z.areas.length){z.areas.push({id:z.nextArea++,name:"Whole house",sqft:0,heat:0,cool:0,units:[]});}
   var ids=st.lines.map(function(l){return l.id;});
@@ -651,21 +659,21 @@ function szResHtml(a,z){
 function szLoop(){
   var tons=0; st.lines.forEach(function(l){var o=OPTS[l.key]; if(o) tons+=o.tons;});
   if(!(tons>0)) return null;
-  var need=tons*SZ_FT_TON, opts=[], n, d;
-  for(n=1;n<=40;n++){ d=Math.ceil(need/n/5)*5; if(d>=SZ_BORE_MIN&&d<=SZ_BORE_MAX) opts.push({n:n,d:d,total:n*d}); }
-  var pick=opts[0], note="";
-  if(!pick){
-    n=Math.max(1,Math.ceil(need/SZ_BORE_MAX)); d=Math.max(SZ_BORE_MIN,Math.ceil(need/n/5)*5);
-    pick={n:n,d:d,total:n*d};
-    note=need<SZ_BORE_MIN?"The requirement is shorter than one "+SZ_BORE_MIN+" ft bore, so one "+SZ_BORE_MIN+" ft bore is used.":"No equal bores of "+SZ_BORE_MIN+" to "+SZ_BORE_MAX+" ft add up to exactly "+Math.round(need).toLocaleString("en-US")+" ft, so "+n+" bores of "+d+" ft are used, which is "+Math.round(pick.total-need).toLocaleString("en-US")+" ft more than the minimum.";
+  var need=tons*SZ_FT_TON, n, d, opts=[], pick=null;
+  for(n=1;n<=40;n++){
+    d=Math.ceil(need/n/5)*5;
+    if(d<=SZ_BORE_MAX){ var o2={n:n,d:d,total:n*d,ideal:d>=SZ_BORE_MIN}; if(!pick) pick=o2; if(o2.ideal) opts.push(o2); }
   }
-  return {tons:tons,need:need,n:pick.n,d:pick.d,total:pick.total,opts:opts,note:note};
+  var note="";
+  if(!pick){ pick={n:41,d:SZ_BORE_MAX,total:41*SZ_BORE_MAX,ideal:true}; }
+  if(!pick.ideal) note="Fewest equal bores that stay under the "+SZ_BORE_MAX+" ft limit. Each is under the usual "+SZ_BORE_MIN+" ft because one fewer bore would pass "+SZ_BORE_MAX+" ft.";
+  return {tons:tons,need:need,n:pick.n,d:pick.d,total:pick.total,opts:opts,note:note,ideal:pick.ideal};
 }
 function szLoopText(L){
   var N=function(x){return Math.round(x).toLocaleString("en-US");};
   var s=L.n+(L.n===1?" bore":" bores")+" of "+L.d+" ft each ("+N(L.total)+" ft in all)";
-  var alt=L.opts.filter(function(o){return o.n!==L.n;}).map(function(o){return o.n+" x "+o.d+" ft";});
-  return {main:s,alt:alt.length?"Other equal-depth options: "+alt.join(", ")+".":""};
+  var alt=L.opts.filter(function(o){return o.n!==L.n;}).slice(0,3).map(function(o){return o.n+" x "+o.d+" ft";});
+  return {main:s,alt:alt.length?"Other equal-depth options in the usual "+SZ_BORE_MIN+" to "+SZ_BORE_MAX+" ft range: "+alt.join(", ")+".":""};
 }
 function szLoopHtml(){
   var L=szLoop(); if(!L) return "";
@@ -676,10 +684,14 @@ function llHead(rows){
   var c=$("f-cust").value.trim(), ad=$("f-addr").value.trim(), names=rows.map(function(r){return optName(r.o);}).join("; ");
   $("ll-head").innerHTML='<div class="llhead"><b>Working on:</b> '+esc(c||"(no customer name yet)")+(ad?' &middot; '+esc(ad):'')+'<div class="szd">Units in this estimate: '+(names?esc(names):"none yet")+'</div></div>';
 }
+function cmpChips(){
+  var z=szS(), items=[["res","Electric resistance"],["ashp","Air-source heat pump"],["gas","Natural gas"],["prop","Propane"],["oil","Fuel oil"]];
+  return '<div class="cmp"><div class="lbl">Compare the geothermal system against (tap to turn on or off)</div><div class="chips">'+items.map(function(i){return '<button type="button" class="chip" data-szcmp="'+i[0]+'" aria-pressed="'+(z.cmp[i[0]]!==false)+'">'+i[1]+'</button>';}).join("")+'</div></div>';
+}
 function llChartsHtml(){
   var z=szS(), one=z.areas.length===1, list=z.areas.map(function(a){return dsArea(a,z,one);}).filter(Boolean), h="";
-  if(list.length&&z.mode!=="sqft"){var rc=dsRunCost(list); h+='<h3>Loads and heat pump capacity</h3>'+chartLoads(list)+'<h3>Yearly operating cost by system</h3>'+chartCost(rc)+'<h3>Yearly carbon dioxide by system</h3>'+chartCo2(rc);}
-  var L=szLoop(); if(L) h+='<h3>Ground loop</h3>'+loopSvg(L);
+  if(list.length&&z.mode!=="sqft"){var rc=dsRunCost(list); h+=cmpChips()+chartLoads(list)+list.map(profileChart).join("")+chartCost(rc)+chartCo2(rc);}
+  var L=szLoop(); if(L) h+=chartBox("Ground loop","Every bore is drilled to the same depth, "+SZ_FT_TON+" ft of bore for each installed ton.",loopSvg(L),"");
   return h;
 }
 function applyTab(){
@@ -909,6 +921,7 @@ try{var raw=localStorage.getItem("nageo-est-prices"); if(raw) applySettings(JSON
 document.addEventListener("click",function(e){
   var t=e.target.closest("button,input");
   if(!t) return;
+  if(t.hasAttribute("data-szcmp")){var cz=szS(),ck=t.getAttribute("data-szcmp"); cz.cmp[ck]=!(cz.cmp[ck]!==false); var lc2=$("ll-charts"); if(lc2) lc2.innerHTML=llChartsHtml(); return;}
   if(t.hasAttribute("data-tabgo")){st.tab=t.getAttribute("data-tabgo");applyTab();window.scrollTo(0,0);return;}
   if(t.hasAttribute("data-szmode")){szS().mode=t.getAttribute("data-szmode");renderSizing(priced());return;}
   if(t.hasAttribute("data-szadd")){var z1=szS(); if(z1.areas.length===1&&!z1.areas[0].units.length) z1.areas[0].units=st.lines.map(function(l){return l.id;}); z1.areas.push({id:z1.nextArea++,name:"Area "+(z1.areas.length+1),sqft:0,heat:0,cool:0,units:[]}); renderSizing(priced());return;}
@@ -1413,62 +1426,167 @@ function dsRunCost(list){
   var p=S.kwh, heatEn=H*DS_EFLH_H, coolEn=C*DS_EFLH_C, acKwh=coolEn/(11*1000);
   var therms=heatEn/(0.95*100000), gal=heatEn/(0.92*91500), oil=heatEn/(0.83*138500);
   var rows=[
-    {name:"Geothermal heat pump",h:kwhH*p,c:kwhC*p,co2:(kwhH+kwhC)*CO2_KWH,geo:true},
-    {name:"Electric resistance + A/C",h:heatEn/3412*p,c:acKwh*p,co2:(heatEn/3412+acKwh)*CO2_KWH},
-    {name:"Air-source heat pump",h:heatEn/(2.5*3412)*p,c:coolEn/(12*1000)*p,co2:(heatEn/(2.5*3412)+coolEn/12000)*CO2_KWH},
-    {name:"Natural gas + A/C",h:therms*S.therm,c:acKwh*p,co2:therms*CO2_THERM+acKwh*CO2_KWH},
-    {name:"Propane + A/C",h:gal*S.prop,c:acKwh*p,co2:gal*CO2_PROP+acKwh*CO2_KWH},
-    {name:"Fuel oil + A/C",h:oil*S.oil,c:acKwh*p,co2:oil*CO2_OIL+acKwh*CO2_KWH}
+    {key:"geo",name:"Geothermal heat pump",h:kwhH*p,c:kwhC*p,co2:(kwhH+kwhC)*CO2_KWH,geo:true},
+    {key:"res",name:"Electric resistance + A/C",h:heatEn/3412*p,c:acKwh*p,co2:(heatEn/3412+acKwh)*CO2_KWH},
+    {key:"ashp",name:"Air-source heat pump",h:heatEn/(2.5*3412)*p,c:coolEn/(12*1000)*p,co2:(heatEn/(2.5*3412)+coolEn/12000)*CO2_KWH},
+    {key:"gas",name:"Natural gas + A/C",h:therms*S.therm,c:acKwh*p,co2:therms*CO2_THERM+acKwh*CO2_KWH},
+    {key:"prop",name:"Propane + A/C",h:gal*S.prop,c:acKwh*p,co2:gal*CO2_PROP+acKwh*CO2_KWH},
+    {key:"oil",name:"Fuel oil + A/C",h:oil*S.oil,c:acKwh*p,co2:oil*CO2_OIL+acKwh*CO2_KWH}
   ];
+  var cmp=szS().cmp;
+  rows=rows.filter(function(r){return r.geo||cmp[r.key]!==false;});
   return {rows:rows,kwhH:kwhH,kwhC:kwhC};
 }
 /* ---------- charts (inline SVG, work on screen and in print) ---------- */
-function svgStack(rows,fmt,title){
-  var W=470,lw=150,rw=80,bh=20,gap=12,top=6,max=0;
-  rows.forEach(function(r){r.sum=0;r.segs.forEach(function(g){r.sum+=g.v;}); if(r.sum>max) max=r.sum;});
-  var H=top+rows.length*(bh+gap), bw=W-lw-rw;
-  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="'+esc(title)+'" style="max-width:640px;display:block;font:12px Arial,Helvetica,sans-serif">';
-  rows.forEach(function(r,i){
-    var y=top+i*(bh+gap), x=lw;
-    o+='<text x="'+(lw-8)+'" y="'+(y+bh/2+4)+'" text-anchor="end" fill="currentColor">'+esc(r.label)+'</text>';
-    r.segs.forEach(function(g){var w=max?g.v/max*bw:0; o+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+bh+'" rx="2" fill="'+g.color+'"/>'; x+=w;});
-    o+='<text x="'+(x+6).toFixed(1)+'" y="'+(y+bh/2+4)+'" fill="currentColor" font-weight="700">'+esc(fmt(r.sum))+'</text>';
+var CH_N=0;
+var CH={heat:"#D9772B",cool:"#2F7EB5",geo:"#1E8A5B",other:"#7C8794",load:"#B9C0C9"};
+function niceMax(v,n){
+  if(!(v>0)) return {step:1,max:n};
+  var raw=v/n, mag=Math.pow(10,Math.floor(Math.log(raw)/Math.LN10)), f=raw/mag, s=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10;
+  var step=s*mag; return {step:step,max:Math.ceil(v/step)*step};
+}
+function chartBox(title,sub,inner,note){
+  return '<div class="cbox"><div class="ct">'+title+'</div>'+(sub?'<div class="cs">'+sub+'</div>':'')+inner+(note?'<div class="cn">'+note+'</div>':'')+'</div>';
+}
+function legend(items){return '<div class="leg">'+items.map(function(i){return '<span><i style="background:'+i[1]+'"></i>'+esc(i[0])+'</span>';}).join("")+'</div>';}
+// Horizontal bar chart. rows: {label, segs:[{v,color}], note, bold} or {header:"text"}.
+function hbars(rows,fmt,title,tickFmt){
+  var W=500,lw=152,rw=92,bh=18,rh=30,hh=26,top=6,bot=26,plotW=W-lw-rw,i,max=0,y=top,H;
+  rows.forEach(function(r){if(r.header) return; r.sum=0; r.segs.forEach(function(g){r.sum+=g.v;}); if(r.sum>max) max=r.sum;});
+  var nm=niceMax(max,4), sc=nm.max?plotW/nm.max:0;
+  var ys=[]; rows.forEach(function(r){ys.push(y); y+=r.header?hh:rh;}); H=y+bot;
+  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="'+esc(title)+'" style="max-width:600px;display:block;font:12px Arial,Helvetica,sans-serif">';
+  for(i=0;i<=Math.round(nm.max/nm.step);i++){var gx=lw+i*nm.step*sc; o+='<line x1="'+gx.toFixed(1)+'" y1="'+top+'" x2="'+gx.toFixed(1)+'" y2="'+(H-bot+2)+'" stroke="currentColor" stroke-opacity="'+(i?".12":".35")+'"/><text x="'+gx.toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" fill="currentColor" fill-opacity=".65" font-size="10.5">'+esc(tickFmt(i*nm.step))+'</text>';}
+  rows.forEach(function(r,k){
+    var yy=ys[k];
+    if(r.header){o+='<text x="2" y="'+(yy+16)+'" fill="currentColor" font-weight="700" font-size="12.5">'+esc(r.header)+'</text>'; return;}
+    var by=yy+(rh-bh)/2, x=lw, id="hb"+(CH_N++), tw=r.sum*sc;
+    o+='<text x="'+(lw-9)+'" y="'+(by+bh/2+4)+'" text-anchor="end" fill="currentColor" font-weight="'+(r.bold?700:400)+'">'+esc(r.label)+'</text>';
+    o+='<clipPath id="'+id+'"><rect x="'+lw+'" y="'+by+'" width="'+Math.max(2,tw).toFixed(1)+'" height="'+bh+'" rx="4"/></clipPath><g clip-path="url(#'+id+')">';
+    r.segs.forEach(function(g){var w=g.v*sc; o+='<rect x="'+x.toFixed(1)+'" y="'+by+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+bh+'" fill="'+g.color+'"/>'; x+=w;});
+    o+='</g><text x="'+(lw+tw+7).toFixed(1)+'" y="'+(by+bh/2+4)+'" fill="currentColor" font-weight="700">'+esc(fmt(r.sum))+(r.note?'<tspan font-weight="400" fill-opacity=".62" dx="6" font-size="11">'+esc(r.note)+'</tspan>':'')+'</text>';
   });
   return o+'</svg>';
 }
-function legend(items){return '<div style="font-size:11px;margin:2px 0 6px">'+items.map(function(i){return '<span style="display:inline-block;width:10px;height:10px;background:'+i[1]+';margin:0 4px 0 10px;border-radius:2px"></span>'+esc(i[0]);}).join("")+'</div>';}
 function chartCost(rc){
-  var rows=rc.rows.map(function(r){return {label:r.name,segs:[{v:r.h,color:"#D9772B"},{v:r.c,color:"#2F7EB5"}]};});
-  return legend([["Heating","#D9772B"],["Cooling","#2F7EB5"]])+svgStack(rows,function(v){return money0(v);},"Annual operating cost by system");
+  var base=rc.rows[0].h+rc.rows[0].c;
+  var rows=rc.rows.map(function(r,i){var tot=r.h+r.c; return {label:r.name,bold:!!r.geo,segs:[{v:r.h,color:CH.heat},{v:r.c,color:CH.cool}],note:i===0?"":"+"+money0(tot-base)};});
+  return chartBox("Yearly operating cost by system","Average year, heating plus cooling. The note shows the extra cost compared with geothermal.",legend([["Heating",CH.heat],["Cooling",CH.cool]])+hbars(rows,function(v){return money0(v);},"Yearly operating cost by system",function(v){return "$"+Math.round(v).toLocaleString("en-US");}),"");
 }
 function chartCo2(rc){
-  var rows=rc.rows.map(function(r){return {label:r.name,segs:[{v:r.co2,color:r.geo?"#2E8B57":"#7A7F87"}]};});
-  return svgStack(rows,function(v){return Math.round(v).toLocaleString("en-US")+" lb";},"Annual carbon dioxide by system");
+  var base=rc.rows[0].co2;
+  var rows=rc.rows.map(function(r,i){return {label:r.name,bold:!!r.geo,segs:[{v:r.co2,color:r.geo?CH.geo:CH.other}],note:i===0?"":"+"+Math.round((r.co2/base-1)*100)+"%"};});
+  return chartBox("Yearly carbon dioxide by system","Pounds of CO2 per year from the energy each system burns or uses. The note shows how much more than geothermal.",hbars(rows,function(v){return Math.round(v).toLocaleString("en-US")+" lb";},"Yearly carbon dioxide by system",function(v){return Math.round(v/1000)+"k";}),"");
 }
 function chartLoads(list){
-  var rows=[]; var N=function(v){return Math.round(v).toLocaleString("en-US");};
+  var rows=[]; var any=false, p=function(a,b){return b>0?Math.round(a/b*100)+"% of load":"";};
   list.forEach(function(d){
-    if(!d.mj) return;
-    rows.push({label:d.a.name+": heating load",segs:[{v:d.c.heat,color:"#B8BDC4"}]});
-    rows.push({label:"heat pump heating",segs:[{v:d.heatCap,color:"#D9772B"}]});
-    rows.push({label:d.a.name+": cooling load",segs:[{v:d.c.cool,color:"#B8BDC4"}]});
-    rows.push({label:"heat pump cooling",segs:[{v:d.coolCap,color:"#2F7EB5"}]});
+    if(!d.mj) return; any=true;
+    rows.push({header:d.a.name+": heating"});
+    rows.push({label:"Load",segs:[{v:d.c.heat,color:CH.load}]});
+    rows.push({label:"Heat pump",bold:true,segs:[{v:d.heatCap,color:CH.heat}],note:p(d.heatCap,d.c.heat)});
+    rows.push({header:d.a.name+": cooling"});
+    rows.push({label:"Load",segs:[{v:d.c.cool,color:CH.load}]});
+    rows.push({label:"Heat pump",bold:true,segs:[{v:d.coolCap,color:CH.cool}],note:p(d.coolCap,d.c.cool)});
   });
-  if(!rows.length) return "";
-  return legend([["Load","#B8BDC4"],["Heat pump heating","#D9772B"],["Heat pump cooling","#2F7EB5"]])+svgStack(rows,function(v){return N(v)+" BTU/h";},"Loads compared with heat pump capacity");
+  if(!any) return "";
+  return chartBox("Loads and heat pump capacity","Peak load for each area next to the capacity of the units serving it (BTU/h).",hbars(rows,function(v){return Math.round(v).toLocaleString("en-US");},"Loads compared with heat pump capacity",function(v){return Math.round(v/1000)+"k";}),"");
 }
 function loopSvg(L){
-  var n=L.n, rows=Math.ceil(n/8), per=Math.ceil(n/rows), sp=34, W=520, H=Math.max(150,rows*sp+60);
-  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Loop field layout" style="max-width:560px;display:block;font:12px Arial,Helvetica,sans-serif">';
-  o+='<text x="10" y="16" font-weight="700" fill="currentColor">Top view: '+n+(n===1?' bore':' bores')+'</text>';
-  var x0=20, y0=36, k=0;
-  for(var r=0;r<rows;r++) for(var c=0;c<per&&k<n;c++,k++) o+='<circle cx="'+(x0+c*sp+8)+'" cy="'+(y0+r*sp+8)+'" r="8" fill="#0B5D5A"/>';
-  var sx=300, gy=36, dh=Math.min(90,60+ (L.d-300)/2);
-  o+='<text x="'+sx+'" y="16" font-weight="700" fill="currentColor">Side view: each bore '+L.d+' ft deep</text>';
-  o+='<rect x="'+sx+'" y="'+gy+'" width="200" height="'+(dh+30)+'" fill="#B58F63" opacity=".25"/><line x1="'+sx+'" y1="'+gy+'" x2="'+(sx+200)+'" y2="'+gy+'" stroke="currentColor" stroke-width="2"/><text x="'+(sx+4)+'" y="'+(gy-5)+'" fill="currentColor" font-size="10">grade</text>';
-  var show=Math.min(n,4); for(var i=0;i<show;i++){var bx=sx+30+i*45; o+='<rect x="'+bx+'" y="'+gy+'" width="10" height="'+dh+'" rx="5" fill="#0B5D5A"/>';}
-  o+='<line x1="'+(sx+14)+'" y1="'+(gy+dh+10)+'" x2="'+(sx+14)+'" y2="'+(gy+dh+10)+'"/><text x="'+(sx+30)+'" y="'+(gy+dh+24)+'" fill="currentColor">'+L.d+' ft (all bores equal)</text>';
+  var n=L.n, rows=Math.ceil(n/8), per=Math.ceil(n/rows), W=520, H=250, id="lp"+(CH_N++);
+  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Ground loop layout" style="max-width:600px;display:block;font:12px Arial,Helvetica,sans-serif">';
+  // top view panel
+  o+='<text x="10" y="18" font-weight="700" fill="currentColor">Top view</text><rect x="10" y="28" width="220" height="150" rx="8" fill="#7FB069" fill-opacity=".16" stroke="currentColor" stroke-opacity=".25"/>';
+  var gw=Math.min(190,(per-1)*34+20), gh=(rows-1)*34, sx0=120-gw/2+10, sy0=103-gh/2, r,c,k=0;
+  for(r=0;r<rows;r++) for(c=0;c<per&&k<n;c++,k++){var cx=sx0+c*((gw-20)/Math.max(1,per-1)||0), cy=sy0+r*34; if(per===1) cx=120; o+='<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="8" fill="#0B5D5A"/><circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="3" fill="#fff" fill-opacity=".85"/>';}
+  o+='<text x="120" y="198" text-anchor="middle" fill="currentColor" font-weight="700">'+n+(n===1?' bore':' bores')+'</text><text x="120" y="214" text-anchor="middle" fill="currentColor" fill-opacity=".65" font-size="11">Spacing set in the final design</text>';
+  // side view panel
+  var x0=270, gy=44, dh=140;
+  o+='<text x="'+x0+'" y="18" font-weight="700" fill="currentColor">Side view</text>';
+  o+='<defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9A27A" stop-opacity=".45"/><stop offset="1" stop-color="#7A5A3A" stop-opacity=".6"/></linearGradient></defs>';
+  o+='<rect x="'+x0+'" y="'+gy+'" width="210" height="'+(dh+16)+'" fill="url(#'+id+')"/><rect x="'+x0+'" y="'+(gy-10)+'" width="210" height="10" fill="#7FB069" fill-opacity=".55"/><line x1="'+x0+'" y1="'+gy+'" x2="'+(x0+210)+'" y2="'+gy+'" stroke="currentColor" stroke-width="1.5"/>';
+  var show=Math.min(n,4), bx;
+  for(var i=0;i<show;i++){bx=x0+22+i*38; o+='<rect x="'+bx+'" y="'+gy+'" width="12" height="'+dh+'" rx="6" fill="#0B5D5A"/><rect x="'+(bx+4)+'" y="'+gy+'" width="4" height="'+(dh-8)+'" rx="2" fill="#fff" fill-opacity=".35"/>';}
+  if(n>4) o+='<text x="'+(x0+22+4*38)+'" y="'+(gy+dh/2)+'" fill="currentColor" font-size="16">…</text>';
+  var ax=x0+196; o+='<line x1="'+ax+'" y1="'+gy+'" x2="'+ax+'" y2="'+(gy+dh)+'" stroke="currentColor" stroke-width="1.2"/><line x1="'+(ax-5)+'" y1="'+gy+'" x2="'+(ax+5)+'" y2="'+gy+'" stroke="currentColor"/><line x1="'+(ax-5)+'" y1="'+(gy+dh)+'" x2="'+(ax+5)+'" y2="'+(gy+dh)+'" stroke="currentColor"/>';
+  o+='<text transform="translate('+(ax-8)+','+(gy+dh/2)+') rotate(-90)" text-anchor="middle" fill="currentColor" font-weight="700">'+L.d+' ft</text>';
+  o+='<text x="'+x0+'" y="'+(gy+dh+36)+'" fill="currentColor" font-size="11.5">Every bore '+L.d+' ft deep · '+Math.round(L.total).toLocaleString("en-US")+' ft in all</text>';
   return o+'</svg>';
+}
+/* ---------- load and operating profile (outdoor temperature vs hours, load lines and heat pump capacity) ---------- */
+// Yearly hours by outdoor temperature for the Washington DC area, built from a simple climate model fitted to about 4,500 heating degree days,
+// 1,400 cooling degree days, and roughly 60 hours a year below 14 F and above 91 F. Heating load is zero at 57 F and reaches the design load at the winter design
+// temperature; cooling load is zero at 65 F and reaches the design load at the summer design temperature (the same shape LoopLink draws).
+var CLIM={Tm:56.5,Aa:22,Ad:6,sig:6.5,nu:4,sv:0.3}, climCache=null, PROF_N=0;
+function climGet(){
+  if(climCache) return climCache;
+  var Zs=[],W=[],s=0,z,i,d,hr,k,b={};
+  for(z=-4;z<=4.001;z+=0.5){Zs.push(z);var w=Math.pow(1+z*z/CLIM.nu,-(CLIM.nu+1)/2);W.push(w);s+=w;}
+  for(k=-15;k<100;k+=5) b[k]=0;
+  for(d=0;d<365;d++){
+    var mu=CLIM.Tm-CLIM.Aa*Math.cos(2*Math.PI*(d-15)/365), sg=CLIM.sig*(1+CLIM.sv*Math.cos(2*Math.PI*(d-15)/365));
+    for(hr=0;hr<24;hr++){
+      var base=mu+CLIM.Ad*Math.cos(2*Math.PI*(hr-15)/24);
+      for(i=0;i<Zs.length;i++){var key=Math.floor((base+sg*Zs[i])/5)*5; if(key<-15) key=-15; if(key>95) key=95; b[key]+=W[i]/s;}
+    }
+  }
+  climCache=[]; for(k=-15;k<100;k+=5) climCache.push({t:k,h:b[k]});
+  return climCache;
+}
+function dsProfile(d){
+  var Td=S.qHeat, Tc=S.qCool, H=d.c.heat, C=d.c.cool, capH=d.heatCap, capC=d.coolCap;
+  var P={bins:[],H:H,C:C,capH:capH,capC:capC,Td:Td,Tc:Tc,heatHrs:0,supHrs:0,coolHrs:0,beyHrs:0};
+  climGet().forEach(function(b){
+    var tt=b.t+2.5, g={t:b.t,heat:0,sup:0,cool:0,bey:0,idle:0};
+    if(tt<57){ var lh=H*(57-tt)/(57-Td); if(lh>capH) g.sup=b.h; else g.heat=b.h; P.heatHrs+=b.h; P.supHrs+=g.sup; }
+    else if(tt>65){ var lc=C*(tt-65)/(Tc-65); if(lc>capC) g.bey=b.h; else g.cool=b.h; P.coolHrs+=b.h; P.beyHrs+=g.bey; }
+    else g.idle=b.h;
+    P.bins.push(g);
+  });
+  P.bp=H>0?57-(capH/H)*(57-Td):null;
+  P.cb=C>0?65+(capC/C)*(Tc-65):null;
+  return P;
+}
+function lineLegend(){
+  var L=function(c,dash,txt){return '<span><b style="display:inline-block;width:20px;border-top:3px '+(dash?'dashed':'solid')+' '+c+';vertical-align:middle;margin-right:5px"></b>'+txt+'</span>';};
+  return '<div class="leg">'+L("#C8372D",0,"Heating load")+L("#1F5FBF",0,"Cooling load")+L("#8A3E08",1,"Heat pump heating capacity")+L("#1F3F8F",1,"Cooling capacity")+'</div>';
+}
+function profileChart(d){
+  var P=dsProfile(d), id="cp"+(CH_N++), W=560,Ht=340,ml=52,mr=58,mt=22,mb=50, pw=W-ml-mr, ph=Ht-mt-mb;
+  var xs=function(T){return ml+(T+15)/115*pw;};
+  var maxH=0; P.bins.forEach(function(g){var v=g.heat+g.sup+g.cool+g.bey+g.idle; if(v>maxH) maxH=v;});
+  var nh=niceMax(maxH*1.08,6), hy=nh.max, ys=function(v){return mt+ph-v/hy*ph;};
+  var mk=Math.max(P.H,P.C,P.capH,P.capC)*1.12/1000, nk=niceMax(mk,6), rk=nk.max, yr=function(k){return mt+ph-k/rk*ph;};
+  var colors={heat:"#2E8B7A",sup:"#C8372D",cool:"#2D6FB7",bey:"#6C3FA0",idle:"#C3C9D1"};
+  var o='<svg viewBox="0 0 '+W+' '+Ht+'" width="100%" role="img" aria-label="Load and operating profile for '+esc(d.a.name)+'" style="max-width:640px;display:block;font:11.5px Arial,Helvetica,sans-serif">';
+  o+='<defs><clipPath id="'+id+'"><rect x="'+ml+'" y="'+mt+'" width="'+pw+'" height="'+ph+'"/></clipPath></defs>';
+  o+='<rect x="'+xs(-15).toFixed(1)+'" y="'+mt+'" width="'+(xs(57)-xs(-15)).toFixed(1)+'" height="'+ph+'" fill="#E8742A" fill-opacity=".10"/><rect x="'+xs(65).toFixed(1)+'" y="'+mt+'" width="'+(xs(100)-xs(65)).toFixed(1)+'" height="'+ph+'" fill="#2D8FD0" fill-opacity=".10"/>';
+  o+='<text x="'+(xs(-15)+6).toFixed(1)+'" y="'+(mt+13)+'" fill="#B5530F" font-weight="700" font-size="10" letter-spacing=".06em">HEATING SEASON</text><text x="'+(xs(100)-6).toFixed(1)+'" y="'+(mt+13)+'" text-anchor="end" fill="#1F5FA0" font-weight="700" font-size="10" letter-spacing=".06em">COOLING SEASON</text>';
+  var i,v;
+  for(i=0;i<=6;i++){var gy=mt+ph-i*ph/6; o+='<line x1="'+ml+'" y1="'+gy.toFixed(1)+'" x2="'+(W-mr)+'" y2="'+gy.toFixed(1)+'" stroke="currentColor" stroke-opacity="'+(i?".12":".4")+'"/>';
+    o+='<text x="'+(ml-7)+'" y="'+(gy+4).toFixed(1)+'" text-anchor="end" fill="currentColor" fill-opacity=".7">'+Math.round(nh.step*i).toLocaleString("en-US")+'</text><text x="'+(W-mr+7)+'" y="'+(gy+4).toFixed(1)+'" fill="currentColor" fill-opacity=".7">'+(nk.step*i)+'</text>';}
+  for(v=-10;v<=100;v+=10){var tx=xs(v).toFixed(1); o+='<line x1="'+tx+'" y1="'+(mt+ph)+'" x2="'+tx+'" y2="'+(mt+ph+4)+'" stroke="currentColor" stroke-opacity=".4"/><text x="'+tx+'" y="'+(mt+ph+17)+'" text-anchor="middle" fill="currentColor" fill-opacity=".7">'+v+'</text>';}
+  P.bins.forEach(function(g){var y=0; ["heat","sup","cool","bey","idle"].forEach(function(k){if(g[k]>0){var h=g[k]/hy*ph; o+='<rect x="'+(xs(g.t)+1).toFixed(1)+'" y="'+(ys(y+g[k])).toFixed(1)+'" width="'+(5/115*pw-2).toFixed(1)+'" height="'+h.toFixed(1)+'" rx="1.5" fill="'+colors[k]+'" fill-opacity=".92"/>'; y+=g[k];}});});
+  o+='<g clip-path="url(#'+id+')">';
+  var hl0=P.H*(72/(57-P.Td))/1000, cl1=P.C*(35/(P.Tc-65))/1000;
+  o+='<line x1="'+xs(-15).toFixed(1)+'" y1="'+yr(hl0).toFixed(1)+'" x2="'+xs(57).toFixed(1)+'" y2="'+yr(0)+'" stroke="#C8372D" stroke-width="2.4"/>';
+  o+='<line x1="'+xs(65).toFixed(1)+'" y1="'+yr(0)+'" x2="'+xs(100).toFixed(1)+'" y2="'+yr(cl1).toFixed(1)+'" stroke="#1F5FBF" stroke-width="2.4"/>';
+  o+='<line x1="'+xs(-15).toFixed(1)+'" y1="'+yr(P.capH/1000).toFixed(1)+'" x2="'+xs(57).toFixed(1)+'" y2="'+yr(P.capH/1000).toFixed(1)+'" stroke="#8A3E08" stroke-width="2" stroke-dasharray="6 4"/>';
+  o+='<line x1="'+xs(65).toFixed(1)+'" y1="'+yr(P.capC/1000).toFixed(1)+'" x2="'+xs(100).toFixed(1)+'" y2="'+yr(P.capC/1000).toFixed(1)+'" stroke="#1F3F8F" stroke-width="2" stroke-dasharray="6 4"/>';
+  var inb=(P.bp!==null&&P.bp>=-15&&P.bp<=57);
+  if(inb){o+='<line x1="'+xs(P.bp).toFixed(1)+'" y1="'+mt+'" x2="'+xs(P.bp).toFixed(1)+'" y2="'+(mt+ph)+'" stroke="#C8372D" stroke-width="1.4" stroke-dasharray="4 3"/>';}
+  o+='</g>';
+  if(inb){var capy=yr(P.capH/1000); o+='<circle cx="'+xs(P.bp).toFixed(1)+'" cy="'+capy.toFixed(1)+'" r="5" fill="#fff" stroke="#C8372D" stroke-width="2.4"/><text x="'+(xs(P.bp)+8).toFixed(1)+'" y="'+(mt+28)+'" fill="#C8372D" font-weight="700">Balance point '+Math.round(P.bp)+'°F</text>';}
+  o+='<line x1="'+ml+'" y1="'+(mt+ph)+'" x2="'+(W-mr)+'" y2="'+(mt+ph)+'" stroke="currentColor" stroke-opacity=".5"/>';
+  o+='<text x="'+(ml+pw/2)+'" y="'+(Ht-8)+'" text-anchor="middle" fill="currentColor" fill-opacity=".8" font-weight="700">Outdoor temperature (°F)</text>';
+  o+='<text transform="translate(13,'+(mt+ph/2)+') rotate(-90)" text-anchor="middle" fill="currentColor" fill-opacity=".8" font-weight="700">Hours per year</text><text transform="translate('+(W-7)+','+(mt+ph/2)+') rotate(90)" text-anchor="middle" fill="currentColor" fill-opacity=".8" font-weight="700">Load and capacity (kBtu/h)</text>';
+  o+='</svg>';
+  var N=function(x){return Math.round(x).toLocaleString("en-US");};
+  var bp=P.bp===null?"":(P.bp<-15?"The heat pump covers the full heating load all the way down past -15°F, so no backup heat is expected.":P.capH>=P.H?"The heat pump covers the full heating load down to about "+Math.round(P.bp)+"°F. Colder than that it would need backup heat.":"The heat pump falls short of the heating load below about "+Math.round(P.bp)+"°F, so backup heat would be needed about "+N(P.supHrs)+" hours a year.");
+  var cb=P.cb===null?"":(P.cb>=100?"It covers the full cooling load up to 100°F.":"The cooling load passes the heat pump's capacity above about "+Math.round(P.cb)+"°F ("+N(P.beyHrs)+" hours a year).");
+  var note='About '+N(P.heatHrs)+' hours a year are cold enough for heating (under 57°F) and '+N(P.coolHrs)+' warm enough for cooling (over 65°F). '+bp+' '+cb+' Hours are typical for the Washington DC area. Capacity is the AHRI rating; real capacity changes with the loop temperature.';
+  return chartBox("Load and operating profile: "+esc(d.a.name),"Hours at each outdoor temperature (bars) with the load lines and the heat pump's capacity (right scale).",
+    legend([["Heat pump heating",colors.heat],["Backup heat needed",colors.sup],["Heat pump cooling",colors.cool],["Beyond cooling capacity",colors.bey],["No heating or cooling",colors.idle]])+lineLegend()+o,note);
 }
 function makeDesignSheet(){
   var rows=priced(); if(!rows.length) return;
@@ -1497,7 +1615,7 @@ function makeDesignSheet(){
   var loop=L?'<table class="kv"><tbody><tr><td>Installed equipment</td><td class="r">'+(Math.round(L.tons*10)/10)+' tons</td></tr>'+
     '<tr><td>Bore length needed ('+SZ_FT_TON+' ft per ton)</td><td class="r">'+N(L.need)+' ft</td></tr>'+
     '<tr><td>Loop field</td><td class="r"><b>'+esc(lt.main)+'</b></td></tr></tbody></table>'+loopSvg(L)+
-    '<p class="s">All bores are drilled to the same depth, between '+SZ_BORE_MIN+' and '+SZ_BORE_MAX+' ft. '+esc(L.note+" "+lt.alt)+' The final loop is confirmed in a full loop design that uses the site\'s ground conditions.</p>':'';
+    '<p class="s">All bores are drilled to the same depth, never deeper than '+SZ_BORE_MAX+' ft. '+esc(L.note+" "+lt.alt)+' The final loop is confirmed in a full loop design that uses the site\'s ground conditions.</p>':'';
   var rc=mj?dsRunCost(list):null, run="", co2="";
   if(rc){
     var tot=function(r){return r.h+r.c;}, base=tot(rc.rows[0]);
@@ -1508,9 +1626,10 @@ function makeDesignSheet(){
       '<p class="s">Geothermal use: about '+N(rc.kwhH)+' kWh for heating and '+N(rc.kwhC)+' kWh for cooling per year.</p>';
     co2=chartCo2(rc)+'<p class="s">Yearly carbon dioxide from the energy each system uses, in pounds. Rough factors: electricity '+CO2_KWH+' lb per kWh (regional grid average, so it changes with how the grid is powered), natural gas '+CO2_THERM+' lb per therm, propane '+CO2_PROP+' lb per gallon, fuel oil '+CO2_OIL+' lb per gallon.</p>';
   }
-  var css='@page{size:letter;margin:.6in}*{box-sizing:border-box}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0}.hd{border-bottom:4px solid #0B5D5A;padding-bottom:10px;margin-bottom:14px}.co{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#555}h1{font-size:25px;margin:2px 0 0}'+
+  var css='@page{size:letter;margin:.6in}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0}.hd{border-bottom:4px solid #0B5D5A;padding-bottom:10px;margin-bottom:14px}.co{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#555}h1{font-size:25px;margin:2px 0 0}'+
     'h2{font-size:15px;margin:18px 0 6px;color:#0B5D5A;border-bottom:1px solid #bbb;padding-bottom:3px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:8px}.meta div{border-bottom:1px solid #bbb;padding:3px 0}.meta span{color:#666;font-size:11px;text-transform:uppercase;margin-right:6px}'+
     'table{width:100%;border-collapse:collapse;font-size:12px}th{background:#eef5f4;text-align:left;padding:6px 5px;border-bottom:2px solid #0B5D5A;font-size:11px}td{padding:6px 5px;border-bottom:1px solid #ccc;vertical-align:top}.r{text-align:right}.tot td{font-weight:700;border-top:2px solid #333}.hl td{background:#eef5f4}'+
+    '.cbox{border:1px solid #cfd5da;border-radius:10px;padding:10px 12px;margin:10px 0;break-inside:avoid}.ct{font-weight:700;font-size:13.5px}.cs{font-size:11px;color:#555;margin:2px 0 6px}.cn{font-size:10.5px;color:#555;margin-top:6px}.leg{font-size:10.5px;margin:2px 0 6px}.leg span{margin-right:12px}.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}'+
     '.s{font-size:11px;color:#555;margin:6px 0}.kv td{border:none;padding:3px 5px}.res{font-size:11.5px;border-bottom:1px solid #999;padding:3px 5px 8px}.res.ok{color:#146c2e}.res.bad{color:#a12418;font-weight:700}.res.warn{color:#8a5a00}.sec{break-inside:avoid}.ft{margin-top:16px;font-size:10.5px;color:#555}';
   var html='<!doctype html><html><head><meta charset="utf-8"><title>Geothermal System Design Summary</title><style>'+css+'</style></head><body>'+
     '<div class="hd"><div class="co">North American Geothermal</div><h1>Geothermal System Design Summary</h1></div>'+
@@ -1519,7 +1638,7 @@ function makeDesignSheet(){
     '<div class="sec"><h2>'+(mj?'System loads':'Size needed')+'</h2>'+loads+'</div>'+
     '<div class="sec"><h2>Equipment and capacity check</h2>'+eq+chartLoads(list)+'</div>'+
     (loop?'<div class="sec"><h2>Ground loop estimate</h2>'+loop+'</div>':'')+
-    (run?'<div class="sec"><h2>Estimated yearly operating cost</h2>'+run+'</div>':'')+(co2?'<div class="sec"><h2>Estimated yearly carbon dioxide</h2>'+co2+'</div>':'')+
+    (mj?'<div class="sec"><h2>Load and operating profile</h2>'+list.map(profileChart).join("")+'</div>':'')+(run?'<div class="sec"><h2>Estimated yearly operating cost</h2>'+run+'</div>':'')+(co2?'<div class="sec"><h2>Estimated yearly carbon dioxide</h2>'+co2+'</div>':'')+
     '<div class="ft">This summary is an estimate to size equipment and the ground loop and is not a Manual J or a loop design report. Final equipment, loop size and cost are confirmed after a site evaluation and full design.</div>'+
     '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
   var slug=(cust||addr||"design").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"design";

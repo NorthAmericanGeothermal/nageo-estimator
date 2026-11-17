@@ -159,6 +159,7 @@
   .szarea{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
   .szhead{display:flex;gap:10px;align-items:center;justify-content:space-between}
   .szname{flex:1;min-width:0;font-weight:700;font-size:16px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}.tabs button{flex:1;font:inherit;font-weight:700;font-size:17px;padding:13px 10px;border:2px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);cursor:pointer;min-height:50px}.tabs button[aria-pressed=true]{background:#0B5D5A;border-color:#0B5D5A;color:#fff}.tabhide{display:none!important}.llhead{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:15px}#ll-charts h3{font-size:15px;margin:16px 0 4px}
   .szmore{margin-top:10px}.szmore summary{cursor:pointer;color:var(--teal,#0B5D5A);font-weight:600;padding:8px 0}
   .szgrid select{font-size:16px;min-height:44px;padding:8px}
   .szgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
@@ -249,6 +250,22 @@
         <label class="lbl" for="s-qcool">House questions: summer outdoor design temp</label>
         <div class="money"><input type="number" inputmode="decimal" id="s-qcool" step="1"><i>&deg;F</i></div>
       </div>
+      <div>
+        <label class="lbl" for="s-kwh">Design summary: electricity price per kWh</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-kwh" min="0" step="0.01"></div>
+      </div>
+      <div>
+        <label class="lbl" for="s-therm">Design summary: natural gas price per therm</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-therm" min="0" step="0.05"></div>
+      </div>
+      <div>
+        <label class="lbl" for="s-prop">Design summary: propane price per gallon</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-prop" min="0" step="0.05"></div>
+      </div>
+      <div>
+        <label class="lbl" for="s-oil">Design summary: fuel oil price per gallon</label>
+        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-oil" min="0" step="0.05"></div>
+      </div>
     </div>
     <p class="hint">The HCP price list is built on <span id="sheet-rate"></span> of drilling per ton. When you change the drilling price, every unit moves by the difference times its tons.</p>
   </section>
@@ -299,7 +316,11 @@
     </div>
 
     <div class="col-right">
-      <section class="card est">
+      <div class="tabs" id="tabs" role="group" aria-label="Estimate sections">
+        <button type="button" data-tabgo="est" aria-pressed="true">Estimate</button>
+        <button type="button" data-tabgo="ll" aria-pressed="false">LoopLink</button>
+      </div>
+      <section class="card est" data-tab="est">
         <h2>Estimate</h2>
         <div id="opened-note" class="opened" hidden></div>
         <div id="lines"></div>
@@ -311,17 +332,20 @@
         </div>
       </section>
 
-      <section class="card lease" id="lease-card">
+      <section class="card lease" id="lease-card" data-tab="est">
         <h2>Lease estimate</h2>
         <div id="lease-body"></div>
       </section>
 
-      <section class="card" id="size-card" hidden>
-        <h2>LoopLink check</h2>
+      <section class="card" id="size-card" data-tab="ll">
+        <h2>LoopLink</h2>
+        <div id="ll-head"></div>
         <div id="size-body"></div>
+        <div id="ll-charts"></div>
+        <div class="actions"><button type="button" class="btn" id="btn-design" disabled>Print design summary</button></div>
       </section>
 
-      <section class="card" id="grec-card" hidden>
+      <section class="card" id="grec-card" data-tab="est" hidden>
         <h2 id="grec-title">GREC estimate</h2>
         <div id="grec-body"></div>
       </section>
@@ -362,9 +386,9 @@ var POOL = [[114, 100000.0, 50000.0, 59.31, 4485.92, 3416.0], [116, 114900.0, 14
    pct = overall percentage added to every unit price (0 = none, -5 = 5% discount).
    SHEET_DRILL = the drilling rate already built into the HCP price sheet. Only change it
    if the price sheet itself is rebuilt on a different rate. */
-var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0, grecVA:90, grecMD:84, szAdd:15, szSqft:600, qAdd:5, qHeat:14, qCool:91};   // szAdd = % added to square footage for things missed; szSqft = square feet per ton (starting value, change it to your rule of thumb)   // grecVA / grecMD = price per GREC (1 MWh) used to project GREC income. MD: Flett Exchange Maryland GREC 2026 vintage, $84.00 on 11/16/2026.
+var DEFAULTS = {drill:4200, md:1000, ded:2500, pct:0, grecVA:90, grecMD:84, szAdd:15, szSqft:600, qAdd:5, qHeat:14, qCool:91, kwh:0.18, therm:1.6, prop:3.0, oil:4.0};   // szAdd = % added to square footage for things missed; szSqft = square feet per ton (starting value, change it to your rule of thumb)   // grecVA / grecMD = price per GREC (1 MWh) used to project GREC income. MD: Flett Exchange Maryland GREC 2026 vintage, $84.00 on 11/16/2026.
 var SHEET_DRILL = 4200;
-var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, pct:DEFAULTS.pct, grecVA:DEFAULTS.grecVA, grecMD:DEFAULTS.grecMD, szAdd:DEFAULTS.szAdd, szSqft:DEFAULTS.szSqft,qAdd:DEFAULTS.qAdd,qHeat:DEFAULTS.qHeat,qCool:DEFAULTS.qCool};
+var S = {drill:DEFAULTS.drill, md:DEFAULTS.md, ded:DEFAULTS.ded, pct:DEFAULTS.pct, grecVA:DEFAULTS.grecVA, grecMD:DEFAULTS.grecMD, szAdd:DEFAULTS.szAdd, szSqft:DEFAULTS.szSqft,qAdd:DEFAULTS.qAdd,qHeat:DEFAULTS.qHeat,qCool:DEFAULTS.qCool,kwh:DEFAULTS.kwh,therm:DEFAULTS.therm,prop:DEFAULTS.prop,oil:DEFAULTS.oil};
 var st = {state:null, job:null, lines:[], nextId:1, mdId:null, addons:{}, upMode:"0", upCustom:0, armed:false, grec:{}, size:null, savedId:null, opened:null, delArmed:null};
 
 var JOBNAME = {RF:"Retrofit", RP:"Replacement", NC:"New construction"};
@@ -458,8 +482,8 @@ var CUR_UNITS = {"W5AV024":[19400,25000,4.1,19.2],"W5AV030":[24600,32300,4.0,20.
 // Rules used by the check (all from NAGeo's past LoopLink designs):
 //  - tons needed: quick mode = (square feet + extra %) / square feet per ton; Manual J mode = the larger of heating and cooling load / 12,000.
 //  - a unit is "too small" if its rated heating or cooling capacity is under 90% of that load, and "larger than needed" if cooling is over 130% of the cooling load.
-//  - loop field estimate: about 200 feet of bore per ton of peak load (past designs ranged 170 to 250), bores about 360 feet deep.
-var SZ_FIT_LO=0.9, SZ_COOL_HI=1.3, SZ_FT_TON=200, SZ_FT_LO=170, SZ_FT_HI=250, SZ_BORE_FT=360;
+//  - loop field: NAGeo rule of 160 feet of bore per installed ton (a 5 ton unit gets 800 ft in total), every bore the same depth, each bore between 300 and 420 feet.
+var SZ_FIT_LO=0.9, SZ_COOL_HI=1.3, SZ_FT_TON=160, SZ_BORE_MIN=300, SZ_BORE_MAX=420;
 function szS(){
   if(!st.size) st.size={mode:"sqft",areas:[],nextArea:1};
   var z=st.size;
@@ -625,21 +649,51 @@ function szResHtml(a,z){
   return '<div class="szr '+r.cls+'"><b>'+esc(r.msg)+'</b>'+(r.detail?'<div class="szd">'+esc(r.detail)+'</div>':'')+(ul?'<div class="szd">Rated capacity (AHRI, full load): '+esc(ul)+'</div>':'')+'</div>';
 }
 function szLoop(){
-  var z=szS(), one=z.areas.length===1, tons=0, any=false;
-  z.areas.forEach(function(a){var c=szCalc(a,z.mode); if(c.ready){tons+=c.need;any=true;}});
-  if(!any) return null;
-  var ft=tons*SZ_FT_TON;
-  return {tons:tons,ft:ft,lo:tons*SZ_FT_LO,hi:tons*SZ_FT_HI,bores:Math.max(1,Math.round(ft/SZ_BORE_FT))};
+  var tons=0; st.lines.forEach(function(l){var o=OPTS[l.key]; if(o) tons+=o.tons;});
+  if(!(tons>0)) return null;
+  var need=tons*SZ_FT_TON, opts=[], n, d;
+  for(n=1;n<=40;n++){ d=Math.ceil(need/n/5)*5; if(d>=SZ_BORE_MIN&&d<=SZ_BORE_MAX) opts.push({n:n,d:d,total:n*d}); }
+  var pick=opts[0], note="";
+  if(!pick){
+    n=Math.max(1,Math.ceil(need/SZ_BORE_MAX)); d=Math.max(SZ_BORE_MIN,Math.ceil(need/n/5)*5);
+    pick={n:n,d:d,total:n*d};
+    note=need<SZ_BORE_MIN?"The requirement is shorter than one "+SZ_BORE_MIN+" ft bore, so one "+SZ_BORE_MIN+" ft bore is used.":"No equal bores of "+SZ_BORE_MIN+" to "+SZ_BORE_MAX+" ft add up to exactly "+Math.round(need).toLocaleString("en-US")+" ft, so "+n+" bores of "+d+" ft are used, which is "+Math.round(pick.total-need).toLocaleString("en-US")+" ft more than the minimum.";
+  }
+  return {tons:tons,need:need,n:pick.n,d:pick.d,total:pick.total,opts:opts,note:note};
+}
+function szLoopText(L){
+  var N=function(x){return Math.round(x).toLocaleString("en-US");};
+  var s=L.n+(L.n===1?" bore":" bores")+" of "+L.d+" ft each ("+N(L.total)+" ft in all)";
+  var alt=L.opts.filter(function(o){return o.n!==L.n;}).map(function(o){return o.n+" x "+o.d+" ft";});
+  return {main:s,alt:alt.length?"Other equal-depth options: "+alt.join(", ")+".":""};
 }
 function szLoopHtml(){
   var L=szLoop(); if(!L) return "";
-  var f=function(n){return Math.round(n/10)*10;};
-  return '<div class="szr"><b>Loop field estimate: about '+f(L.ft).toLocaleString("en-US")+' ft of bore, roughly '+L.bores+(L.bores===1?' bore':' bores')+' of '+SZ_BORE_FT+' ft.</b><div class="szd">Peak load '+(Math.round(L.tons*10)/10)+' tons x '+SZ_FT_TON+' ft per ton. Past NAGeo designs ranged from '+SZ_FT_LO+' to '+SZ_FT_HI+' ft per ton ('+f(L.lo).toLocaleString("en-US")+' to '+f(L.hi).toLocaleString("en-US")+' ft). This is an estimate from past jobs; a real LoopLink design decides the loop.</div></div>';
+  var N=function(x){return Math.round(x).toLocaleString("en-US");}, tx=szLoopText(L);
+  return '<div class="szr"><b>Loop field: '+esc(tx.main)+'</b><div class="szd">'+(Math.round(L.tons*10)/10)+' tons of units x '+SZ_FT_TON+' ft per ton = '+N(L.need)+' ft needed. Every bore is drilled to the same depth.'+(L.note?' '+esc(L.note):'')+(tx.alt?' '+esc(tx.alt):'')+'</div></div>';
+}
+function llHead(rows){
+  var c=$("f-cust").value.trim(), ad=$("f-addr").value.trim(), names=rows.map(function(r){return optName(r.o);}).join("; ");
+  $("ll-head").innerHTML='<div class="llhead"><b>Working on:</b> '+esc(c||"(no customer name yet)")+(ad?' &middot; '+esc(ad):'')+'<div class="szd">Units in this estimate: '+(names?esc(names):"none yet")+'</div></div>';
+}
+function llChartsHtml(){
+  var z=szS(), one=z.areas.length===1, list=z.areas.map(function(a){return dsArea(a,z,one);}).filter(Boolean), h="";
+  if(list.length&&z.mode!=="sqft"){var rc=dsRunCost(list); h+='<h3>Loads and heat pump capacity</h3>'+chartLoads(list)+'<h3>Yearly operating cost by system</h3>'+chartCost(rc)+'<h3>Yearly carbon dioxide by system</h3>'+chartCo2(rc);}
+  var L=szLoop(); if(L) h+='<h3>Ground loop</h3>'+loopSvg(L);
+  return h;
+}
+function applyTab(){
+  var tb=st.tab||"est";
+  Array.prototype.forEach.call(document.querySelectorAll("[data-tab]"),function(el){el.classList.toggle("tabhide",el.getAttribute("data-tab")!==tb);});
+  Array.prototype.forEach.call(document.querySelectorAll("[data-tabgo]"),function(el){if(el.parentNode.id==="tabs") el.setAttribute("aria-pressed",String(el.getAttribute("data-tabgo")===tb));});
 }
 function renderSizing(rows){
-  var card=$("size-card");
-  card.hidden=!(rows.length&&st.state);
-  if(card.hidden) return;
+  var card=$("size-card"); card.hidden=false;
+  llHead(rows);
+  if(!rows.length||!st.state){
+    $("size-body").innerHTML='<p class="sub">Add the units for this job on the Estimate tab first. This tab is tied to the units in that estimate, so you can do the LoopLink work before the customer visit and save it with the estimate.</p><button type="button" class="linkbtn" data-tabgo="est">Go to the Estimate tab</button>';
+    $("ll-charts").innerHTML=""; return;
+  }
   var z=szS(), one=z.areas.length===1;
   var assigned={}; z.areas.forEach(function(a){a.units.forEach(function(i){assigned[i]=true;});});
   var seg='<div class="seg" role="group" aria-label="What you know about the house" style="grid-template-columns:repeat(3,minmax(0,1fr))">'+
@@ -663,7 +717,7 @@ function renderSizing(rows){
   if(!one&&un.length) h+='<div class="szr warn"><b>Not in any area yet:</b> '+un.map(function(l){var i=st.lines.indexOf(l);return esc(szUnitLabel(l,i));}).join(", ")+'</div>';
   h+='<button type="button" class="linkbtn" data-szadd="1" style="margin-top:10px">+ Add another area</button><div id="sz-loop">'+szLoopHtml()+'</div>';
   var act=document.activeElement&&document.activeElement.getAttribute&&document.activeElement.getAttribute("data-szf");
-  $("size-body").innerHTML=h;
+  $("size-body").innerHTML=h; $("ll-charts").innerHTML=llChartsHtml();
   if(act){var el=document.querySelector('[data-szf="'+act+'"]'); if(el){el.focus(); try{var v=el.value;el.value="";el.value=v;}catch(x){}}}
 }
 function szSheetHtml(){
@@ -678,9 +732,9 @@ function szSheetHtml(){
     var cap=r.caps.some(function(u){return u.known;})?Math.round(r.heatCap).toLocaleString("en-US")+" / "+Math.round(r.coolCap).toLocaleString("en-US"):"";
     return '<tr><td><b>'+esc(a.name)+'</b></td><td>'+esc(basis)+'</td><td class="r">'+(Math.round(r.need*100)/100)+' tons</td><td>'+esc(units||"none")+'</td><td class="r">'+esc(cap)+'</td><td>'+(r.cls==="ok"?"Fits":(r.cls==="bad"?"Too small":(r.cls==="warn"?"Check":"")))+'</td></tr>';
   }).join("");
-  var L=szLoop(), f=function(n){return (Math.round(n/10)*10).toLocaleString("en-US");};
+  var L=szLoop();
   return '<div class="lease"><h3>Loads and equipment check ('+(z.mode==="ql"?"estimated from house questions, not a Manual J":z.mode==="mj"?"Manual J numbers":"square footage, +"+S.szAdd+"% for things missed, "+S.szSqft+" sq ft per ton")+')</h3><table class="opt"><thead><tr><th>Area</th><th>Basis</th><th class="r">Needs</th><th>Units</th><th class="r">Rated heat / cool BTU/h</th><th>Result</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-    (L?'<p style="font-size:12px;margin-top:6px"><b>Loop field estimate:</b> about '+f(L.ft)+' ft of bore (roughly '+L.bores+(L.bores===1?' bore':' bores')+' of '+SZ_BORE_FT+' ft), from '+SZ_FT_TON+' ft per ton of peak load; past jobs ranged '+SZ_FT_LO+' to '+SZ_FT_HI+'. Estimate only. A LoopLink design decides the loop.</p>':'')+'</div>';
+    (L?'<p style="font-size:12px;margin-top:6px"><b>Loop field:</b> '+esc(szLoopText(L).main)+', from '+SZ_FT_TON+' ft per installed ton ('+(Math.round(L.tons*10)/10)+' tons).</p>':'')+'</div>';
 }
 // The NAGeo deposit (S.ded, $2,500) is always collected by NAGeo, so it is never part of the lease: the amount leased is the job total less that deposit.
 function leaseCost(total){return Math.max(0,total-S.ded);}
@@ -710,7 +764,7 @@ function rateText(){
 function renderRate(){
   $("sheet-rate").textContent=money(SHEET_DRILL);
   $("rate-now").textContent=rateText();
-  [["s-drill","drill"],["s-md","md"],["s-ded","ded"],["s-pct","pct"],["s-grecva","grecVA"],["s-grecmd","grecMD"],["s-szadd","szAdd"],["s-szsqft","szSqft"],["s-qadd","qAdd"],["s-qheat","qHeat"],["s-qcool","qCool"]].forEach(function(p){
+  [["s-drill","drill"],["s-md","md"],["s-ded","ded"],["s-pct","pct"],["s-grecva","grecVA"],["s-grecmd","grecMD"],["s-szadd","szAdd"],["s-szsqft","szSqft"],["s-qadd","qAdd"],["s-qheat","qHeat"],["s-qcool","qCool"],["s-kwh","kwh"],["s-therm","therm"],["s-prop","prop"],["s-oil","oil"]].forEach(function(p){
     var el=$(p[0]); if(document.activeElement!==el) el.value=S[p[1]];
   });
 }
@@ -784,7 +838,7 @@ function renderEstimate(){
   renderLease(rows.length?t.total:0);
   renderGrec(rows,t);
   renderSizing(rows);
-  $("btn-save").disabled=!rows.length; $("btn-customer").disabled=!rows.length;
+  $("btn-save").disabled=!rows.length; $("btn-customer").disabled=!rows.length; $("btn-design").disabled=!rows.length;
   $("btn-save").textContent=st.savedId?"Update saved estimate":"Save estimate";
   $("btn-save-new").hidden=!st.savedId;
 }
@@ -825,7 +879,7 @@ function renderLease(cost){
     '<div class="note">Estimates only. Upstream sets the final payment after underwriting, so two similar jobs can differ.</div>';
 }
 function renderAll(){
-  ensureMd();renderRate();renderChoices();renderPicker();renderEstimate();renderSaved();
+  ensureMd();renderRate();renderChoices();renderPicker();renderEstimate();renderSaved(); applyTab();
   var on=$("opened-note");
   if(st.opened){
     on.hidden=false;
@@ -835,19 +889,19 @@ function renderAll(){
 
 /* ---------- settings storage ---------- */
 function devicePrices(){
-  var o={drill:DEFAULTS.drill,md:DEFAULTS.md,ded:DEFAULTS.ded,pct:DEFAULTS.pct,grecVA:DEFAULTS.grecVA,grecMD:DEFAULTS.grecMD,szAdd:DEFAULTS.szAdd,szSqft:DEFAULTS.szSqft,qAdd:DEFAULTS.qAdd,qHeat:DEFAULTS.qHeat,qCool:DEFAULTS.qCool};
-  try{var r=localStorage.getItem("nageo-est-prices"); if(r){var d=JSON.parse(r); ["drill","md","ded","grecVA","grecMD","szAdd","szSqft","qAdd","qHeat","qCool"].forEach(function(k){if(typeof d[k]==="number"&&d[k]>=0)o[k]=d[k];}); if(typeof d.pct==="number"&&d.pct>-100&&d.pct<=300)o.pct=d.pct;}}catch(e){}
+  var o={drill:DEFAULTS.drill,md:DEFAULTS.md,ded:DEFAULTS.ded,pct:DEFAULTS.pct,grecVA:DEFAULTS.grecVA,grecMD:DEFAULTS.grecMD,szAdd:DEFAULTS.szAdd,szSqft:DEFAULTS.szSqft,qAdd:DEFAULTS.qAdd,qHeat:DEFAULTS.qHeat,qCool:DEFAULTS.qCool,kwh:DEFAULTS.kwh,therm:DEFAULTS.therm,prop:DEFAULTS.prop,oil:DEFAULTS.oil};
+  try{var r=localStorage.getItem("nageo-est-prices"); if(r){var d=JSON.parse(r); ["drill","md","ded","grecVA","grecMD","szAdd","szSqft","qAdd","qHeat","qCool","kwh","therm","prop","oil"].forEach(function(k){if(typeof d[k]==="number"&&d[k]>=0)o[k]=d[k];}); if(typeof d.pct==="number"&&d.pct>-100&&d.pct<=300)o.pct=d.pct;}}catch(e){}
   return o;
 }
 function saveSettings(){
   if(st.opened){$("save-status").textContent="These prices apply to this opened estimate. Save the estimate to keep them.";return;}
-  var data={drill:S.drill,md:S.md,ded:S.ded,pct:S.pct,grecVA:S.grecVA,grecMD:S.grecMD,szAdd:S.szAdd,szSqft:S.szSqft,qAdd:S.qAdd,qHeat:S.qHeat,qCool:S.qCool};
+  var data={drill:S.drill,md:S.md,ded:S.ded,pct:S.pct,grecVA:S.grecVA,grecMD:S.grecMD,szAdd:S.szAdd,szSqft:S.szSqft,qAdd:S.qAdd,qHeat:S.qHeat,qCool:S.qCool,kwh:S.kwh,therm:S.therm,prop:S.prop,oil:S.oil};
   try{localStorage.setItem("nageo-est-prices",JSON.stringify(data));}catch(e){}
   $("save-status").textContent="Saved on this device. To change the starting prices for everyone, edit DEFAULTS in index.html.";
 }
 function applySettings(d){
   if(!d) return;
-  ["drill","md","ded","grecVA","grecMD","szAdd","szSqft","qAdd","qHeat","qCool"].forEach(function(k){ if(typeof d[k]==="number"&&isFinite(d[k])&&d[k]>=0) S[k]=d[k]; });
+  ["drill","md","ded","grecVA","grecMD","szAdd","szSqft","qAdd","qHeat","qCool","kwh","therm","prop","oil"].forEach(function(k){ if(typeof d[k]==="number"&&isFinite(d[k])&&d[k]>=0) S[k]=d[k]; });
   if(typeof d.pct==="number"&&isFinite(d.pct)&&d.pct>-100&&d.pct<=300) S.pct=d.pct;
 }
 try{var raw=localStorage.getItem("nageo-est-prices"); if(raw) applySettings(JSON.parse(raw));}catch(e){}
@@ -855,6 +909,7 @@ try{var raw=localStorage.getItem("nageo-est-prices"); if(raw) applySettings(JSON
 document.addEventListener("click",function(e){
   var t=e.target.closest("button,input");
   if(!t) return;
+  if(t.hasAttribute("data-tabgo")){st.tab=t.getAttribute("data-tabgo");applyTab();window.scrollTo(0,0);return;}
   if(t.hasAttribute("data-szmode")){szS().mode=t.getAttribute("data-szmode");renderSizing(priced());return;}
   if(t.hasAttribute("data-szadd")){var z1=szS(); if(z1.areas.length===1&&!z1.areas[0].units.length) z1.areas[0].units=st.lines.map(function(l){return l.id;}); z1.areas.push({id:z1.nextArea++,name:"Area "+(z1.areas.length+1),sqft:0,heat:0,cool:0,units:[]}); renderSizing(priced());return;}
   if(t.hasAttribute("data-szrm")){var z2=szS(),rid2=t.getAttribute("data-szrm"); z2.areas=z2.areas.filter(function(a){return String(a.id)!==rid2;}); renderSizing(priced());return;}
@@ -889,6 +944,7 @@ document.addEventListener("click",function(e){
   }
   if(t.id==="btn-sheet"){makeSheet();return;}
   if(t.id==="btn-customer"){makeCustomerSheet();return;}
+  if(t.id==="btn-design"){makeDesignSheet();return;}
   if(t.id==="btn-signin"){signIn();return;}
   if(t.id==="btn-signout"){signOut();return;}
   if(t.id==="btn-move"){moveLocal();return;}
@@ -922,15 +978,16 @@ document.addEventListener("change",function(e){
 });
 document.addEventListener("input",function(e){
   var t=e.target;
+  if(t.id==="f-cust"||t.id==="f-addr"){llHead(priced());}
   if(t.hasAttribute&&t.hasAttribute("data-szqn")){
     var np=t.getAttribute("data-szqn").split("|"), nz=szS(), na=nz.areas.filter(function(x){return String(x.id)===np[1];})[0];
-    if(na){na.q=na.q||qlNew(); na.q[np[0]]=parseInt(t.value,10)||0; var ne=$("sz-res-"+na.id); if(ne) ne.innerHTML=szResHtml(na,nz); var nl=$("sz-loop"); if(nl) nl.innerHTML=szLoopHtml();}
+    if(na){na.q=na.q||qlNew(); na.q[np[0]]=parseInt(t.value,10)||0; var ne=$("sz-res-"+na.id); if(ne) ne.innerHTML=szResHtml(na,nz); var nl=$("sz-loop"); if(nl) nl.innerHTML=szLoopHtml(); var nc=$("ll-charts"); if(nc) nc.innerHTML=llChartsHtml();}
     return;
   }
   if(t.hasAttribute&&t.hasAttribute("data-szf")){
     var p=t.getAttribute("data-szf").split("|"), z=szS(), a=z.areas.filter(function(x){return String(x.id)===p[1];})[0];
     if(a){ if(p[0]==="name") a.name=t.value; else a[p[0]]=parseFloat(t.value)||0;
-      var el=$("sz-res-"+a.id); if(el) el.innerHTML=szResHtml(a,z); var lp=$("sz-loop"); if(lp) lp.innerHTML=szLoopHtml(); }
+      var el=$("sz-res-"+a.id); if(el) el.innerHTML=szResHtml(a,z); var lp=$("sz-loop"); if(lp) lp.innerHTML=szLoopHtml(); var lc=$("ll-charts"); if(lc) lc.innerHTML=llChartsHtml(); }
     return;
   }
   if(t.hasAttribute&&(t.hasAttribute("data-gsqft")||t.hasAttribute("data-gqty"))){
@@ -942,7 +999,7 @@ document.addEventListener("input",function(e){
   }
   if(t.id==="saved-q"){renderSavedList();return;}
   if(t.id==="saved-by"){try{localStorage.setItem(USER_KEY,t.value.trim());}catch(err){}return;}
-  var m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct","s-grecva":"grecVA","s-grecmd":"grecMD","s-szadd":"szAdd","s-szsqft":"szSqft","s-qadd":"qAdd","s-qheat":"qHeat","s-qcool":"qCool"};
+  var m={"s-drill":"drill","s-md":"md","s-ded":"ded","s-pct":"pct","s-grecva":"grecVA","s-grecmd":"grecMD","s-szadd":"szAdd","s-szsqft":"szSqft","s-qadd":"qAdd","s-qheat":"qHeat","s-qcool":"qCool","s-kwh":"kwh","s-therm":"therm","s-prop":"prop","s-oil":"oil"};
   if(m[t.id]){
     var v=parseFloat(t.value); if(isNaN(v)) v=0; if(t.id!=="s-pct"&&v<0) v=0; if(t.id==="s-pct"){ if(v<=-100) v=-99; if(v>300) v=300; }
     S[m[t.id]]=v; $("rate-now").textContent=rateText();
@@ -1104,7 +1161,7 @@ if(sb){
 function snapshot(){
   return {state:st.state,job:st.job,lines:st.lines.map(function(l){return {id:l.id,key:l.key,dbl:!!l.dbl};}),nextId:st.nextId,mdId:st.mdId,
     addons:Object.assign({},st.addons),upMode:st.upMode,upCustom:st.upCustom,grec:JSON.parse(JSON.stringify(st.grec)),size:st.size?JSON.parse(JSON.stringify(st.size)):null,
-    cust:$("f-cust").value,addr:$("f-addr").value,notes:$("f-notes").value,S:{drill:S.drill,md:S.md,ded:S.ded,pct:S.pct,grecVA:S.grecVA,grecMD:S.grecMD,szAdd:S.szAdd,szSqft:S.szSqft,qAdd:S.qAdd,qHeat:S.qHeat,qCool:S.qCool}};
+    cust:$("f-cust").value,addr:$("f-addr").value,notes:$("f-notes").value,S:{drill:S.drill,md:S.md,ded:S.ded,pct:S.pct,grecVA:S.grecVA,grecMD:S.grecMD,szAdd:S.szAdd,szSqft:S.szSqft,qAdd:S.qAdd,qHeat:S.qHeat,qCool:S.qCool,kwh:S.kwh,therm:S.therm,prop:S.prop,oil:S.oil}};
 }
 function saveEstimate(asNew){
   var rows=priced(); if(!rows.length) return;
@@ -1336,6 +1393,138 @@ function renderGrecOut(res){
 }
 
 /* ---------- customer summary (no HCP codes) ---------- */
+/* ---------- design summary printout (loads, equipment check, loop field, running cost) ---------- */
+var DS_EFLH_H=1400, DS_EFLH_C=800;   // full-load hours per year for heating and cooling, worked back from NAGeo's past LoopLink runs
+function dsArea(a,z,one){
+  var r=szResult(a,z.mode,one), c=szCalc(a,z.mode);
+  if(!c.ready||!r.caps.length) return null;
+  var heat=0,cool=0,hw=0,cw=0,tons=0;
+  r.caps.forEach(function(u){var cop=u.cop||3.8, eer=u.eer||17; heat+=u.heat; cool+=u.cool; hw+=u.heat/cop; cw+=u.cool/eer; tons+=u.tons;});
+  return {a:a,r:r,c:c,heatCap:heat,coolCap:cool,cop:heat/hw,eer:cool/cw,tons:tons,mj:z.mode!=="sqft"};
+}
+// Carbon per unit of energy: grid electricity about 0.75 lb per kWh (regional average, rough); gas 11.7 lb per therm; propane 12.7 lb per gallon; fuel oil 22.4 lb per gallon.
+var CO2_KWH=0.75, CO2_THERM=11.7, CO2_PROP=12.7, CO2_OIL=22.4;
+function dsRunCost(list){
+  var kwhH=0,kwhC=0,H=0,C=0,pen=1.03;
+  list.forEach(function(d){
+    var h=d.c.heat, c=d.c.cool; H+=h; C+=c;
+    kwhH+=h*DS_EFLH_H/(d.cop*3412)*pen; kwhC+=c*DS_EFLH_C/(d.eer*1000)*pen;
+  });
+  var p=S.kwh, heatEn=H*DS_EFLH_H, coolEn=C*DS_EFLH_C, acKwh=coolEn/(11*1000);
+  var therms=heatEn/(0.95*100000), gal=heatEn/(0.92*91500), oil=heatEn/(0.83*138500);
+  var rows=[
+    {name:"Geothermal heat pump",h:kwhH*p,c:kwhC*p,co2:(kwhH+kwhC)*CO2_KWH,geo:true},
+    {name:"Electric resistance + A/C",h:heatEn/3412*p,c:acKwh*p,co2:(heatEn/3412+acKwh)*CO2_KWH},
+    {name:"Air-source heat pump",h:heatEn/(2.5*3412)*p,c:coolEn/(12*1000)*p,co2:(heatEn/(2.5*3412)+coolEn/12000)*CO2_KWH},
+    {name:"Natural gas + A/C",h:therms*S.therm,c:acKwh*p,co2:therms*CO2_THERM+acKwh*CO2_KWH},
+    {name:"Propane + A/C",h:gal*S.prop,c:acKwh*p,co2:gal*CO2_PROP+acKwh*CO2_KWH},
+    {name:"Fuel oil + A/C",h:oil*S.oil,c:acKwh*p,co2:oil*CO2_OIL+acKwh*CO2_KWH}
+  ];
+  return {rows:rows,kwhH:kwhH,kwhC:kwhC};
+}
+/* ---------- charts (inline SVG, work on screen and in print) ---------- */
+function svgStack(rows,fmt,title){
+  var W=470,lw=150,rw=80,bh=20,gap=12,top=6,max=0;
+  rows.forEach(function(r){r.sum=0;r.segs.forEach(function(g){r.sum+=g.v;}); if(r.sum>max) max=r.sum;});
+  var H=top+rows.length*(bh+gap), bw=W-lw-rw;
+  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="'+esc(title)+'" style="max-width:640px;display:block;font:12px Arial,Helvetica,sans-serif">';
+  rows.forEach(function(r,i){
+    var y=top+i*(bh+gap), x=lw;
+    o+='<text x="'+(lw-8)+'" y="'+(y+bh/2+4)+'" text-anchor="end" fill="currentColor">'+esc(r.label)+'</text>';
+    r.segs.forEach(function(g){var w=max?g.v/max*bw:0; o+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+bh+'" rx="2" fill="'+g.color+'"/>'; x+=w;});
+    o+='<text x="'+(x+6).toFixed(1)+'" y="'+(y+bh/2+4)+'" fill="currentColor" font-weight="700">'+esc(fmt(r.sum))+'</text>';
+  });
+  return o+'</svg>';
+}
+function legend(items){return '<div style="font-size:11px;margin:2px 0 6px">'+items.map(function(i){return '<span style="display:inline-block;width:10px;height:10px;background:'+i[1]+';margin:0 4px 0 10px;border-radius:2px"></span>'+esc(i[0]);}).join("")+'</div>';}
+function chartCost(rc){
+  var rows=rc.rows.map(function(r){return {label:r.name,segs:[{v:r.h,color:"#D9772B"},{v:r.c,color:"#2F7EB5"}]};});
+  return legend([["Heating","#D9772B"],["Cooling","#2F7EB5"]])+svgStack(rows,function(v){return money0(v);},"Annual operating cost by system");
+}
+function chartCo2(rc){
+  var rows=rc.rows.map(function(r){return {label:r.name,segs:[{v:r.co2,color:r.geo?"#2E8B57":"#7A7F87"}]};});
+  return svgStack(rows,function(v){return Math.round(v).toLocaleString("en-US")+" lb";},"Annual carbon dioxide by system");
+}
+function chartLoads(list){
+  var rows=[]; var N=function(v){return Math.round(v).toLocaleString("en-US");};
+  list.forEach(function(d){
+    if(!d.mj) return;
+    rows.push({label:d.a.name+": heating load",segs:[{v:d.c.heat,color:"#B8BDC4"}]});
+    rows.push({label:"heat pump heating",segs:[{v:d.heatCap,color:"#D9772B"}]});
+    rows.push({label:d.a.name+": cooling load",segs:[{v:d.c.cool,color:"#B8BDC4"}]});
+    rows.push({label:"heat pump cooling",segs:[{v:d.coolCap,color:"#2F7EB5"}]});
+  });
+  if(!rows.length) return "";
+  return legend([["Load","#B8BDC4"],["Heat pump heating","#D9772B"],["Heat pump cooling","#2F7EB5"]])+svgStack(rows,function(v){return N(v)+" BTU/h";},"Loads compared with heat pump capacity");
+}
+function loopSvg(L){
+  var n=L.n, rows=Math.ceil(n/8), per=Math.ceil(n/rows), sp=34, W=520, H=Math.max(150,rows*sp+60);
+  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Loop field layout" style="max-width:560px;display:block;font:12px Arial,Helvetica,sans-serif">';
+  o+='<text x="10" y="16" font-weight="700" fill="currentColor">Top view: '+n+(n===1?' bore':' bores')+'</text>';
+  var x0=20, y0=36, k=0;
+  for(var r=0;r<rows;r++) for(var c=0;c<per&&k<n;c++,k++) o+='<circle cx="'+(x0+c*sp+8)+'" cy="'+(y0+r*sp+8)+'" r="8" fill="#0B5D5A"/>';
+  var sx=300, gy=36, dh=Math.min(90,60+ (L.d-300)/2);
+  o+='<text x="'+sx+'" y="16" font-weight="700" fill="currentColor">Side view: each bore '+L.d+' ft deep</text>';
+  o+='<rect x="'+sx+'" y="'+gy+'" width="200" height="'+(dh+30)+'" fill="#B58F63" opacity=".25"/><line x1="'+sx+'" y1="'+gy+'" x2="'+(sx+200)+'" y2="'+gy+'" stroke="currentColor" stroke-width="2"/><text x="'+(sx+4)+'" y="'+(gy-5)+'" fill="currentColor" font-size="10">grade</text>';
+  var show=Math.min(n,4); for(var i=0;i<show;i++){var bx=sx+30+i*45; o+='<rect x="'+bx+'" y="'+gy+'" width="10" height="'+dh+'" rx="5" fill="#0B5D5A"/>';}
+  o+='<line x1="'+(sx+14)+'" y1="'+(gy+dh+10)+'" x2="'+(sx+14)+'" y2="'+(gy+dh+10)+'"/><text x="'+(sx+30)+'" y="'+(gy+dh+24)+'" fill="currentColor">'+L.d+' ft (all bores equal)</text>';
+  return o+'</svg>';
+}
+function makeDesignSheet(){
+  var rows=priced(); if(!rows.length) return;
+  var z=szS(), one=z.areas.length===1;
+  var list=z.areas.map(function(a){return dsArea(a,z,one);}).filter(Boolean);
+  if(!list.length){$("msg").textContent="Enter the loads or square footage in the LoopLink check and assign a unit to each area first.";return;}
+  var cust=$("f-cust").value.trim(), addr=$("f-addr").value.trim();
+  var today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  var mj=z.mode!=="sqft", N=function(n){return Math.round(n).toLocaleString("en-US");};
+  var basis=z.mode==="mj"?"Loads are from a Manual J calculation.":z.mode==="ql"?"Loads are estimated from answers about the house (walls, windows, attic, floors and air leakage). They are not a Manual J.":"Equipment size is estimated from square footage, with "+S.szAdd+"% added for things missed. No room-by-room loads were calculated.";
+  var tH=0,tC=0,tNeed=0; list.forEach(function(d){tH+=d.c.heat;tC+=d.c.cool;tNeed+=d.c.need;});
+  var loads=mj?'<table><thead><tr><th>Area</th><th class="r">Heating load (BTU/h)</th><th class="r">Cooling load (BTU/h)</th></tr></thead><tbody>'+
+      list.map(function(d){return '<tr><td>'+esc(d.a.name)+'</td><td class="r">'+N(d.c.heat)+'</td><td class="r">'+N(d.c.cool)+'</td></tr>';}).join("")+
+      (list.length>1?'<tr class="tot"><td>Total</td><td class="r">'+N(tH)+'</td><td class="r">'+N(tC)+'</td></tr>':'')+'</tbody></table>'
+    :'<table><thead><tr><th>Area</th><th class="r">Square feet</th><th class="r">Tons needed</th></tr></thead><tbody>'+
+      list.map(function(d){return '<tr><td>'+esc(d.a.name)+'</td><td class="r">'+N(d.a.sqft)+'</td><td class="r">'+(Math.round(d.c.need*100)/100)+'</td></tr>';}).join("")+'</tbody></table>';
+  var eq='<table><thead><tr><th>Area</th><th>Heat pump</th><th class="r">Heating (BTU/h)</th><th class="r">Cooling (BTU/h)</th><th class="r">COP</th><th class="r">EER</th>'+(mj?'<th class="r">Heating vs load</th><th class="r">Cooling vs load</th>':'<th class="r">Tons vs need</th>')+'</tr></thead><tbody>'+
+    list.map(function(d){
+      var names=d.r.caps.map(function(u){return (u.model||"Unit")+" ("+tonsStr(u.tons)+" ton)";}).join(", ");
+      var p=function(x){return x?Math.round(x*100)+"%":"";};
+      return '<tr><td>'+esc(d.a.name)+'</td><td>'+esc(names)+'</td><td class="r">'+N(d.heatCap)+'</td><td class="r">'+N(d.coolCap)+'</td><td class="r">'+(Math.round(d.cop*100)/100)+'</td><td class="r">'+(Math.round(d.eer*10)/10)+'</td>'+
+        (mj?'<td class="r">'+p(d.r.rh)+'</td><td class="r">'+p(d.r.rc)+'</td>':'<td class="r">'+p(d.r.ratio)+'</td>')+'</tr>'+
+        '<tr><td colspan="'+(mj?8:7)+'" class="res '+d.r.cls+'">'+esc(d.r.msg)+'</td></tr>';
+    }).join("")+'</tbody></table><p class="s">Capacities are the manufacturer ratings at full load with a closed loop (AHRI). COP is heating efficiency and EER is cooling efficiency. A unit is flagged too small below '+Math.round(SZ_FIT_LO*100)+'% of the load.</p>';
+  var L=szLoop(), lt=L?szLoopText(L):null;
+  var loop=L?'<table class="kv"><tbody><tr><td>Installed equipment</td><td class="r">'+(Math.round(L.tons*10)/10)+' tons</td></tr>'+
+    '<tr><td>Bore length needed ('+SZ_FT_TON+' ft per ton)</td><td class="r">'+N(L.need)+' ft</td></tr>'+
+    '<tr><td>Loop field</td><td class="r"><b>'+esc(lt.main)+'</b></td></tr></tbody></table>'+loopSvg(L)+
+    '<p class="s">All bores are drilled to the same depth, between '+SZ_BORE_MIN+' and '+SZ_BORE_MAX+' ft. '+esc(L.note+" "+lt.alt)+' The final loop is confirmed in a full loop design that uses the site\'s ground conditions.</p>':'';
+  var rc=mj?dsRunCost(list):null, run="", co2="";
+  if(rc){
+    var tot=function(r){return r.h+r.c;}, base=tot(rc.rows[0]);
+    run='<table><thead><tr><th>System</th><th class="r">Heating / yr</th><th class="r">Cooling / yr</th><th class="r">Total / yr</th><th class="r">Extra vs geothermal</th></tr></thead><tbody>'+
+      rc.rows.map(function(r,i){return '<tr'+(i===0?' class="hl"':'')+'><td>'+esc(r.name)+'</td><td class="r">'+money0(r.h)+'</td><td class="r">'+money0(r.c)+'</td><td class="r"><b>'+money0(tot(r))+'</b></td><td class="r">'+(i===0?"":money0(tot(r)-base))+'</td></tr>';}).join("")+'</tbody></table>'+
+      chartCost(rc)+
+      '<p class="s">Rough yearly estimate for an average year. Electricity '+fmt2(S.kwh)+' per kWh, natural gas '+fmt2(S.therm)+' per therm, propane '+fmt2(S.prop)+' per gallon and fuel oil '+fmt2(S.oil)+' per gallon. Assumes about '+DS_EFLH_H+' hours per year of full-load heating and '+DS_EFLH_C+' of cooling, a 3% allowance for the loop pump, a standard air conditioner at EER 11, an air-source heat pump at heating COP 2.5 and cooling EER 12, a gas furnace at 95%, propane at 92% and oil at 83%. Real use depends on the home, thermostat settings and rates.</p>'+
+      '<p class="s">Geothermal use: about '+N(rc.kwhH)+' kWh for heating and '+N(rc.kwhC)+' kWh for cooling per year.</p>';
+    co2=chartCo2(rc)+'<p class="s">Yearly carbon dioxide from the energy each system uses, in pounds. Rough factors: electricity '+CO2_KWH+' lb per kWh (regional grid average, so it changes with how the grid is powered), natural gas '+CO2_THERM+' lb per therm, propane '+CO2_PROP+' lb per gallon, fuel oil '+CO2_OIL+' lb per gallon.</p>';
+  }
+  var css='@page{size:letter;margin:.6in}*{box-sizing:border-box}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0}.hd{border-bottom:4px solid #0B5D5A;padding-bottom:10px;margin-bottom:14px}.co{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#555}h1{font-size:25px;margin:2px 0 0}'+
+    'h2{font-size:15px;margin:18px 0 6px;color:#0B5D5A;border-bottom:1px solid #bbb;padding-bottom:3px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:8px}.meta div{border-bottom:1px solid #bbb;padding:3px 0}.meta span{color:#666;font-size:11px;text-transform:uppercase;margin-right:6px}'+
+    'table{width:100%;border-collapse:collapse;font-size:12px}th{background:#eef5f4;text-align:left;padding:6px 5px;border-bottom:2px solid #0B5D5A;font-size:11px}td{padding:6px 5px;border-bottom:1px solid #ccc;vertical-align:top}.r{text-align:right}.tot td{font-weight:700;border-top:2px solid #333}.hl td{background:#eef5f4}'+
+    '.s{font-size:11px;color:#555;margin:6px 0}.kv td{border:none;padding:3px 5px}.res{font-size:11.5px;border-bottom:1px solid #999;padding:3px 5px 8px}.res.ok{color:#146c2e}.res.bad{color:#a12418;font-weight:700}.res.warn{color:#8a5a00}.sec{break-inside:avoid}.ft{margin-top:16px;font-size:10.5px;color:#555}';
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>Geothermal System Design Summary</title><style>'+css+'</style></head><body>'+
+    '<div class="hd"><div class="co">North American Geothermal</div><h1>Geothermal System Design Summary</h1></div>'+
+    '<div class="meta"><div><span>Prepared for</span>'+esc(cust)+'&nbsp;</div><div><span>Date</span>'+esc(today)+'</div><div style="grid-column:1/3"><span>Property</span>'+esc(addr)+'&nbsp;</div></div>'+
+    '<p class="s">'+esc(basis)+'</p>'+
+    '<div class="sec"><h2>'+(mj?'System loads':'Size needed')+'</h2>'+loads+'</div>'+
+    '<div class="sec"><h2>Equipment and capacity check</h2>'+eq+chartLoads(list)+'</div>'+
+    (loop?'<div class="sec"><h2>Ground loop estimate</h2>'+loop+'</div>':'')+
+    (run?'<div class="sec"><h2>Estimated yearly operating cost</h2>'+run+'</div>':'')+(co2?'<div class="sec"><h2>Estimated yearly carbon dioxide</h2>'+co2+'</div>':'')+
+    '<div class="ft">This summary is an estimate to size equipment and the ground loop and is not a Manual J or a loop design report. Final equipment, loop size and cost are confirmed after a site evaluation and full design.</div>'+
+    '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})<\/script></body></html>';
+  var slug=(cust||addr||"design").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"design";
+  openDoc(html,"NAGeo-design-"+slug+".html","The design summary opened in a new tab and the print window should appear.");
+}
 function makeCustomerSheet(){
   var rows=priced(); if(!rows.length) return;
   var t=totals(rows), lc=leaseCost(t.total), nd=ngDep(t.total), up=upfrontAmt(lc), L=leaseFor(lc,up), gr=grecRun(rows,t);

@@ -53,6 +53,16 @@
   .settings{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:var(--shadow)}
   .settings .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:12px}
   .settings .hint{margin:10px 0 0}
+  .sgroup{border:1px solid var(--line);border-radius:12px;margin-top:12px;background:var(--bg)}
+  .sgroup>summary{cursor:pointer;list-style:none;padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-height:48px}
+  .sgroup>summary::-webkit-details-marker{display:none}
+  .sgroup>summary b{font-size:17px}.sgroup>summary b:before{content:"\25B8  ";color:#0B5D5A}
+  .sgroup[open]>summary b:before{content:"\25BE  "}
+  .sgroup>summary span{font-size:14px;opacity:.75}
+  .sgroup .grid2{padding:0 16px 16px;margin-top:0}
+  .fh{font-size:13px;opacity:.72;margin-top:5px;line-height:1.35}.fh:empty{display:none}
+  .sfoot{margin-top:16px}
+
 
   .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:20px;align-items:start}
   @media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
@@ -202,117 +212,160 @@
     </div>
     <div class="rate">
       <span>Drilling price</span><b class="num" id="rate-now">$4,200 per ton</b>
-      <button type="button" class="linkbtn" id="toggle-settings" aria-expanded="false" aria-controls="settings">Change prices</button>
+      <button type="button" class="linkbtn" id="toggle-settings" aria-expanded="false" aria-controls="settings">Settings</button>
       <button type="button" class="linkbtn" id="toggle-saved" aria-expanded="false" aria-controls="saved">Saved estimates (0)</button>
     </div>
   </header>
 
   <section class="settings" id="settings" hidden>
-    <h3>Prices you can change</h3>
-    <p class="hint" style="margin-top:4px">Everything on the page updates right away. <span id="save-status"></span></p>
-    <div class="grid2">
-      <div>
-        <label class="lbl" for="s-drill">Drilling price per ton</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-drill" min="0" step="50"></div>
+    <h3>Settings</h3>
+    <p class="hint" style="margin-top:4px">Everything on the page updates right away. Tap a heading to open or close it. <span id="save-status"></span></p>
+    <details class="sgroup" open>
+      <summary><b>Pricing</b><span>Drilling, Maryland, discounts and the deposit.</span></summary>
+      <div class="grid2">
+        <div>
+          <label class="lbl" for="s-drill">Drilling price per ton</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-drill" min="0" step="50"></div>
+          <div class="fh">The HCP price list is built on <span id="sheet-rate"></span> per ton. Every unit moves by the difference times its tons.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-pct">Overall percentage on all units</label>
+          <div class="money"><i>%</i><input type="number" inputmode="decimal" id="s-pct" min="-99" max="300" step="0.5"></div>
+          <div class="fh">Use a minus sign for a discount. 0 means standard prices.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-md">Maryland install</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-md" min="0" step="50"></div>
+          <div class="fh">Added once per Maryland job.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-ded">NAGeo deposit</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-ded" min="0" step="100"></div>
+          <div class="fh">Taken off the job total before the lease amount is figured.</div>
+        </div>
       </div>
-      <div>
-        <label class="lbl" for="s-md">Maryland install, added once per job</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-md" min="0" step="50"></div>
+    </details>
+    <details class="sgroup">
+      <summary><b>GREC prices</b><span>Price per credit for the GREC calculator.</span></summary>
+      <div class="grid2">
+        <div>
+          <label class="lbl" for="s-grecva">Virginia, per credit</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-grecva" min="0" step="1"></div>
+          <div class="fh"></div>
+        </div>
+        <div>
+          <label class="lbl" for="s-grecmd">Maryland, per credit</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-grecmd" min="0" step="1"></div>
+          <div class="fh"></div>
+        </div>
       </div>
-      <div>
-        <label class="lbl" for="s-pct">Overall percentage on all units (minus for a discount)</label>
-        <div class="money"><i>%</i><input type="number" inputmode="decimal" id="s-pct" min="-99" max="300" step="0.5"></div>
+    </details>
+    <details class="sgroup">
+      <summary><b>Equipment sizing (System Design tab)</b><span>How tons are guessed when there is no Manual J.</span></summary>
+      <div class="grid2">
+        <div>
+          <label class="lbl" for="s-szadd">Extra percent on square feet</label>
+          <div class="money"><input type="number" inputmode="decimal" id="s-szadd" min="0" step="1"><i>%</i></div>
+          <div class="fh">Added to cover things missed, like windows and high ceilings.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-szsqft">Square feet per ton</label>
+          <div class="money"><input type="number" inputmode="decimal" id="s-szsqft" min="0" step="25"></div>
+          <div class="fh">Starting rule of thumb for the square footage method.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-qadd">House questions: cushion on the result</label>
+          <div class="money"><input type="number" inputmode="decimal" id="s-qadd" min="0" step="1"><i>%</i></div>
+          <div class="fh">Extra percent added to the load from the house questions.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-qheat">House questions: winter design temperature</label>
+          <div class="money"><input type="number" inputmode="decimal" id="s-qheat" min="0" step="1"><i>&deg;F</i></div>
+          <div class="fh">Outdoor temperature the heating load is figured at.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-qcool">House questions: summer design temperature</label>
+          <div class="money"><input type="number" inputmode="decimal" id="s-qcool" min="0" step="1"><i>&deg;F</i></div>
+          <div class="fh">Outdoor temperature the cooling load is figured at.</div>
+        </div>
       </div>
-      <div>
-        <label class="lbl" for="s-ded">NAGeo deposit (taken off the lease)</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-ded" min="0" step="100"></div>
+    </details>
+    <details class="sgroup">
+      <summary><b>Energy prices</b><span>Used for the yearly operating cost and carbon charts.</span></summary>
+      <div class="grid2">
+        <div>
+          <label class="lbl" for="s-kwh">Electricity, per kWh</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-kwh" min="0" step="0.001"></div>
+          <div class="fh">Used for electric resistance, central A/C and air-source heat pumps.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-kwhg">Geothermal electricity, per kWh</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-kwhg" min="0" step="0.001"></div>
+          <div class="fh">The rate for geothermal systems, usually about 2 cents lower.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-ccf">Natural gas, per Ccf</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-ccf" min="0" step="0.05"></div>
+          <div class="fh">One Ccf is 100 cubic feet.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-prop">Propane, per gallon</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-prop" min="0" step="0.05"></div>
+          <div class="fh"></div>
+        </div>
+        <div>
+          <label class="lbl" for="s-oil">Fuel oil, per gallon</label>
+          <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-oil" min="0" step="0.05"></div>
+          <div class="fh"></div>
+        </div>
       </div>
-      <div>
-        <label class="lbl" for="s-grecva">GREC price, Virginia (per credit)</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-grecva" min="0" step="1"></div>
+    </details>
+    <details class="sgroup">
+      <summary><b>Efficiency of the systems we compare against</b><span>What the customer's other options are assumed to achieve.</span></summary>
+      <div class="grid2">
+        <div>
+          <label class="lbl" for="s-acseer">Central A/C, SEER</label>
+          <input type="number" inputmode="decimal" id="s-acseer" min="1" step="0.5">
+          <div class="fh">Used with gas, propane, oil and electric resistance heat.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-hspf">Air-source heat pump, heating HSPF</label>
+          <input type="number" inputmode="decimal" id="s-hspf" min="1" step="0.1">
+          <div class="fh">Higher is better. Typical range is about 7.5 to 10.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-seer">Air-source heat pump, cooling SEER</label>
+          <input type="number" inputmode="decimal" id="s-seer" min="1" step="0.5">
+          <div class="fh">Higher is better.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-afueg">Natural gas furnace, AFUE %</label>
+          <input type="number" inputmode="decimal" id="s-afueg" min="1" step="1">
+          <div class="fh">Share of the fuel that becomes heat.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-afuep">Propane furnace, AFUE %</label>
+          <input type="number" inputmode="decimal" id="s-afuep" min="1" step="1">
+          <div class="fh"></div>
+        </div>
+        <div>
+          <label class="lbl" for="s-afueo">Fuel oil furnace, AFUE %</label>
+          <input type="number" inputmode="decimal" id="s-afueo" min="1" step="1">
+          <div class="fh"></div>
+        </div>
+        <div>
+          <label class="lbl" for="s-oldcop">Old geothermal system, heating COP</label>
+          <input type="number" inputmode="decimal" id="s-oldcop" min="1" step="0.1">
+          <div class="fh">Only used when the old geothermal comparison is turned on.</div>
+        </div>
+        <div>
+          <label class="lbl" for="s-oldeer">Old geothermal system, cooling EER</label>
+          <input type="number" inputmode="decimal" id="s-oldeer" min="1" step="0.5">
+          <div class="fh">Only used when the old geothermal comparison is turned on.</div>
+        </div>
       </div>
-      <div>
-        <label class="lbl" for="s-grecmd">GREC price, Maryland (per credit)</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-grecmd" min="0" step="1"></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-szadd">Sizing: extra percent on square feet</label>
-        <div class="money"><input type="number" inputmode="decimal" id="s-szadd" min="0" step="1"><i>%</i></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-szsqft">Sizing: square feet per ton</label>
-        <div class="money"><input type="number" inputmode="decimal" id="s-szsqft" min="1" step="25"></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-qadd">House questions: cushion on the result</label>
-        <div class="money"><input type="number" inputmode="decimal" id="s-qadd" min="0" step="1"><i>%</i></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-qheat">House questions: winter outdoor design temp</label>
-        <div class="money"><input type="number" inputmode="decimal" id="s-qheat" step="1"><i>&deg;F</i></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-qcool">House questions: summer outdoor design temp</label>
-        <div class="money"><input type="number" inputmode="decimal" id="s-qcool" step="1"><i>&deg;F</i></div>
-      </div>
-    </div>
-    <h3 style="margin-top:20px">Energy prices for the design summary</h3>
-    <p class="hint" style="margin-top:4px">Used for the yearly operating cost and carbon charts. Electric resistance and air-source heat pumps use the electricity price.</p>
-    <div class="grid2">
-      <div>
-        <label class="lbl" for="s-kwh">Electricity, $ per kWh (standard and air-source heat pump)</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-kwh" min="0" step="0.001"></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-kwhg">Geothermal electricity, $ per kWh</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-kwhg" min="0" step="0.001"></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-acseer">Central A/C (with gas, propane, oil or electric heat), SEER</label>
-        <input type="number" inputmode="decimal" id="s-acseer" min="1" step="0.5">
-      </div>
-      <div>
-        <label class="lbl" for="s-hspf">Air-source heat pump heating, HSPF</label>
-        <input type="number" inputmode="decimal" id="s-hspf" min="1" step="0.1">
-      </div>
-      <div>
-        <label class="lbl" for="s-seer">Air-source heat pump cooling, SEER</label>
-        <input type="number" inputmode="decimal" id="s-seer" min="1" step="0.5">
-      </div>
-      <div>
-        <label class="lbl" for="s-afueg">Natural gas furnace, AFUE %</label>
-        <input type="number" inputmode="decimal" id="s-afueg" min="30" max="100" step="1">
-      </div>
-      <div>
-        <label class="lbl" for="s-afuep">Propane furnace, AFUE %</label>
-        <input type="number" inputmode="decimal" id="s-afuep" min="30" max="100" step="1">
-      </div>
-      <div>
-        <label class="lbl" for="s-afueo">Fuel oil furnace, AFUE %</label>
-        <input type="number" inputmode="decimal" id="s-afueo" min="30" max="100" step="1">
-      </div>
-      <div>
-        <label class="lbl" for="s-oldcop">Old geothermal system, heating COP</label>
-        <input type="number" inputmode="decimal" id="s-oldcop" min="1" step="0.1">
-      </div>
-      <div>
-        <label class="lbl" for="s-oldeer">Old geothermal system, cooling EER</label>
-        <input type="number" inputmode="decimal" id="s-oldeer" min="1" step="0.5">
-      </div>
-      <div>
-        <label class="lbl" for="s-ccf">Natural gas, $ per Ccf (100 cubic feet)</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-ccf" min="0" step="0.05"></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-prop">Propane, $ per gallon</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-prop" min="0" step="0.05"></div>
-      </div>
-      <div>
-        <label class="lbl" for="s-oil">Fuel oil, $ per gallon</label>
-        <div class="money"><i>$</i><input type="number" inputmode="decimal" id="s-oil" min="0" step="0.05"></div>
-      </div>
-    </div>
-    <p class="hint">The HCP price list is built on <span id="sheet-rate"></span> of drilling per ton. When you change the drilling price, every unit moves by the difference times its tons.</p>
+    </details>
+    <div class="sfoot"><button type="button" class="btn ghost" id="btn-defaults">Put all settings back to the standard values</button></div>
   </section>
 
   <section class="settings" id="saved" hidden>
@@ -344,7 +397,7 @@
           </div>
           <div>
             <label class="lbl" for="f-pid">Customer ID (optional)</label>
-            <input type="text" id="f-pid" autocomplete="off" inputmode="numeric" placeholder="Fills in from Housecall Pro">
+            <input type="text" id="f-pid" autocomplete="off" inputmode="numeric" placeholder="From Housecall Pro">
           </div>
           <div>
             <label class="lbl" for="f-phone">Customer phone (optional)</label>
@@ -1013,6 +1066,10 @@ document.addEventListener("click",function(e){
     renderAll();return;
   }
   if(t.hasAttribute("data-up")){st.upMode=t.getAttribute("data-up");renderEstimate();return;}
+  if(t.id==="btn-defaults"){
+    ["drill","md","ded","pct","grecVA","grecMD","szAdd","szSqft","qAdd","qHeat","qCool","kwh","kwhG","hspf","seer","acSeer","afueG","afueP","afueO","oldCop","oldEer","ccf","prop","oil"].forEach(function(k){S[k]=DEFAULTS[k];});
+    saveSettings(); renderAll(); return;
+  }
   if(t.id==="toggle-settings"){
     var s=$("settings"); s.hidden=!s.hidden; t.setAttribute("aria-expanded",String(!s.hidden)); return;
   }

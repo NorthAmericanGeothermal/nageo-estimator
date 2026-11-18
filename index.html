@@ -993,13 +993,13 @@ function renderLease(cost){
     '<div class="stats">'+
       '<div class="stat"><div class="k">Amount leased</div><div class="v num">'+money0(lc)+'</div></div>'+
       '<div class="stat"><div class="k">Per year</div><div class="v num">'+money0(annual)+'</div></div>'+
-      '<div class="stat"><div class="k">Year 6 buyout</div><div class="v num">'+money0(L.b6.typ)+'</div></div>'+
-      '<div class="stat"><div class="k">Year 12 buyout</div><div class="v num">'+money0(L.b12.typ)+'</div></div>'+
+      '<div class="stat"><div class="k">Buyout at month 60 (start of year 6)</div><div class="v num">'+money0(L.b6.typ)+'</div></div>'+
+      '<div class="stat"><div class="k">Buyout at month 132 (start of year 12)</div><div class="v num">'+money0(L.b12.typ)+'</div></div>'+
     '</div>'+
-    '<div class="tblwrap"><table class="tbl"><thead><tr><th>If the customer</th><th>Total paid</th></tr></thead><tbody>'+
-      '<tr><td>Buys out in year 6</td><td class="num">'+money0(y6tot)+'</td></tr>'+
-      '<tr><td>Buys out in year 12</td><td class="num">'+money0(y12tot)+'</td></tr>'+
-      '<tr><td>Keeps the lease 20 years</td><td class="num">'+money0(fulltot)+'</td></tr>'+
+    '<div class="tblwrap"><table class="tbl"><thead><tr><th>If the customer</th><th>Monthly payments</th><th>Total paid</th></tr></thead><tbody>'+
+      '<tr><td>Buys out at month 60 (start of year 6)</td><td class="num">60 &times; '+money0(L.mo.typ)+' = '+money0(60*L.mo.typ)+'</td><td class="num">'+money0(y6tot)+'</td></tr>'+
+      '<tr><td>Buys out at month 132 (start of year 12)</td><td class="num">132 &times; '+money0(L.mo.typ)+' = '+money0(132*L.mo.typ)+'</td><td class="num">'+money0(y12tot)+'</td></tr>'+
+      '<tr><td>Keeps the lease 20 years</td><td class="num">240 &times; '+money0(L.mo.typ)+' = '+money0(240*L.mo.typ)+'</td><td class="num">'+money0(fulltot)+'</td></tr>'+
     '</tbody></table></div>'+
     '<div class="tblwrap"><table class="tbl"><tbody>'+
       '<tr><td>Job total</td><td class="num">'+money0(cost)+'</td></tr>'+
@@ -1194,8 +1194,8 @@ function makeSheet(){
     lrow('Upfront on lease',function(o){return money0(o.u);})+
     lrow('Due at signing (NAGeo deposit + upfront)',function(o){return money0(o.dep);})+
     lrow('Monthly payment',function(o){return '<b>'+money0(o.L.mo.typ)+'</b><div class="s">'+money0(o.L.mo.low)+' to '+money0(o.L.mo.high)+'</div>';})+
-    lrow('Year 6 buyout',function(o){return money0(o.L.b6.typ);})+
-    lrow('Year 12 buyout',function(o){return money0(o.L.b12.typ);})+
+    lrow('Buyout at month 60 (after 60 payments of '+money0(opts[0].L.mo.typ)+' = '+money0(60*opts[0].L.mo.typ)+')',function(o){return money0(o.L.b6.typ);})+
+    lrow('Buyout at month 132 (after 132 payments)',function(o){return money0(o.L.b12.typ);})+
     '</tbody></table></div>';
   var html='<!doctype html><html><head><meta charset="utf-8"><title>NAGeo Estimate Sheet</title><style>'+
     '@page{size:letter;margin:.5in}*{box-sizing:border-box}body{font:12px/1.35 Arial,Helvetica,sans-serif;color:#111;margin:0}'+
@@ -1834,7 +1834,7 @@ function makeCustomerSheet(){
   }).join("")+((t.addons!==0||t.md>0)?'<tr><td><b>Equipment and installation subtotal</b></td><td class="r"><b>'+money(t.units)+'</b></td></tr>':'')+addonRows().map(function(a){return '<tr><td><b>'+esc(a.name)+'</b></td><td class="r">'+money(a.price)+'</td></tr>';}).join("")+
     (t.md>0?'<tr><td><b>Maryland install</b></td><td class="r">'+money(t.md)+'</td></tr>':'');
   var leaseBox='<div class="box"><h3>Lease option</h3><p>Through Upstream Lease, 20 years. Estimated payment about <b>'+money0(L.mo.typ)+' per month</b> (likely between '+money0(L.mo.low)+' and '+money0(L.mo.high)+'), plus sales tax'+(up>0?', with '+money0(up)+' paid upfront on the lease':', with nothing upfront on the lease')+'. The lease covers '+money0(lc)+', which is the job total less the '+money0(nd)+' deposit paid to North American Geothermal at signing.</p>'+
-    '<p>If you choose to buy out the lease, the estimated buyout is about '+money0(L.b6.typ)+' after year 6 or about '+money0(L.b12.typ)+' after year 12.</p></div>';
+    '<p>If you choose to buy out the lease, the estimated buyout is about '+money0(L.b6.typ)+' after 60 monthly payments (the start of year 6) or about '+money0(L.b12.typ)+' after 132 monthly payments (the start of year 12).</p></div>';
   var grecBox='';
   if(gr){
     var o=gr.out, c=o.calc, mdl=c.fleet.map(function(f){return f.q+" x WaterFurnace "+f.m.key;}).join(", ");

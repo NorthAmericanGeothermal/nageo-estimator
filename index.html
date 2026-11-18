@@ -1575,21 +1575,23 @@ function renderGrecOut(res){
 /* ---------- customer summary (no HCP codes) ---------- */
 /* ---------- design summary printout (loads, equipment check, loop field, running cost) ---------- */
 var DS_EFLH_H=1930, DS_EFLH_C=1550;   // full-load hours per year for heating and cooling: runtime x capacity divided by peak load, median of 69 zones in NAGeo's past LoopLink reports (middle half 1,875 to 1,985 heating, 1,490 to 1,597 cooling)
-var DS_COP_SEAS=1.10, DS_EER_SEAS=1.38;   // part-load gain: seasonal efficiency of the dual-capacity and variable-speed units compared with the AHRI full-load rating, from the same reports
+// Seasonal efficiency compared with the AHRI full-load rating (heating COP, cooling EER). 5 Series (dual capacity): median of 70+ zones in the past LoopLink reports. 7 Series (variable speed): from the current LoopLink run of a W7AV060 (COP 4.51 and EER 24.6 against AHRI 3.5 and 17.1); the older reports show an even larger gain but used outdated unit data.
+var DS_SEAS={"5":[1.10,1.15],"7":[1.29,1.44]};
+function dsSeas(model){var f=DS_SEAS[(model||"").charAt(1)]||DS_SEAS["5"];return f;}
 function dsArea(a,z,one){
   var r=szResult(a,z.mode,one), c=szCalc(a,z.mode);
   if(!c.ready||!r.caps.length) return null;
-  var heat=0,cool=0,hw=0,cw=0,tons=0;
-  r.caps.forEach(function(u){var cop=u.cop||3.8, eer=u.eer||17; heat+=u.heat; cool+=u.cool; hw+=u.heat/cop; cw+=u.cool/eer; tons+=u.tons;});
-  return {a:a,r:r,c:c,heatCap:heat,coolCap:cool,cop:heat/hw,eer:cool/cw,tons:tons,mj:z.mode!=="sqft"};
+  var heat=0,cool=0,hw=0,cw=0,hs=0,cs=0,tons=0;
+  r.caps.forEach(function(u){var cop=u.cop||3.8, eer=u.eer||17, f=dsSeas(u.model); heat+=u.heat; cool+=u.cool; hw+=u.heat/cop; cw+=u.cool/eer; hs+=u.heat/(cop*f[0]); cs+=u.cool/(eer*f[1]); tons+=u.tons;});
+  return {a:a,r:r,c:c,heatCap:heat,coolCap:cool,cop:heat/hw,eer:cool/cw,copS:heat/hs,eerS:cool/cs,tons:tons,mj:z.mode!=="sqft"};
 }
-// Carbon per unit of energy: grid electricity about 0.75 lb per kWh (regional average, rough); gas 11.7 lb per therm; propane 12.7 lb per gallon; fuel oil 22.4 lb per gallon.
-var CO2_KWH=0.75, CO2_THERM=11.7, CO2_PROP=12.7, CO2_OIL=22.4;
+// Carbon per unit of energy: grid electricity 0.595 lb per kWh (EPA eGRID2023: 593 lb/MWh for Virginia and the Carolinas, 597 lb/MWh for the Mid-Atlantic that includes Montgomery County); gas 11.7 lb per therm; propane 12.7 lb per gallon; fuel oil 22.4 lb per gallon.
+var CO2_KWH=0.595, CO2_THERM=11.7, CO2_PROP=12.7, CO2_OIL=22.4;
 function dsRunCost(list){
   var kwhH=0,kwhC=0,H=0,C=0,pen=1.03;
   list.forEach(function(d){
     var h=d.c.heat, c=d.c.cool; H+=h; C+=c;
-    kwhH+=h*DS_EFLH_H/(d.cop*DS_COP_SEAS*3412)*pen; kwhC+=c*DS_EFLH_C/(d.eer*DS_EER_SEAS*1000)*pen;
+    kwhH+=h*DS_EFLH_H/(d.copS*3412)*pen; kwhC+=c*DS_EFLH_C/(d.eerS*1000)*pen;
   });
   var p=S.kwh, heatEn=H*DS_EFLH_H, coolEn=C*DS_EFLH_C, acKwh=coolEn/(S.acSeer*1000);
   var therms=heatEn/(S.afueG/100*100000), gal=heatEn/(S.afueP/100*91500), oil=heatEn/(S.afueO/100*138500);
@@ -1791,9 +1793,9 @@ function makeDesignSheet(){
     run='<table><thead><tr><th>System</th><th class="r">Heating / yr</th><th class="r">Cooling / yr</th><th class="r">Total / yr</th><th class="r">Extra vs geothermal</th></tr></thead><tbody>'+
       rc.rows.map(function(r,i){return '<tr'+(i===0?' class="hl"':'')+'><td>'+esc(r.name)+'</td><td class="r">'+money0(r.h)+'</td><td class="r">'+money0(r.c)+'</td><td class="r"><b>'+money0(tot(r))+'</b></td><td class="r">'+(i===0?"":money0(tot(r)-base))+'</td></tr>';}).join("")+'</tbody></table>'+
       chartCost(rc)+
-      '<p class="s">Rough yearly estimate for an average year. Electricity '+fmt3(S.kwh)+' per kWh, geothermal electricity '+fmt3(S.kwhG)+' per kWh, natural gas '+fmt2(S.ccf)+' per Ccf, propane '+fmt2(S.prop)+' per gallon and fuel oil '+fmt2(S.oil)+' per gallon. Assumes about '+DS_EFLH_H+' hours per year of full-load heating and '+DS_EFLH_C+' of cooling (the average of NAGeo\'s past LoopLink designs), geothermal efficiency of the AHRI rating raised '+Math.round((DS_COP_SEAS-1)*100)+'% for heating and '+Math.round((DS_EER_SEAS-1)*100)+'% for cooling because the units run mostly at low speed, a 3% allowance for the loop pump, a central air conditioner at SEER '+S.acSeer+', an air-source heat pump at HSPF '+S.hspf+' and SEER '+S.seer+', furnaces at AFUE '+S.afueG+'% (gas), '+S.afueP+'% (propane) and '+S.afueO+'% (oil), and an old geothermal system at COP '+S.oldCop+' and EER '+S.oldEer+'. Real use depends on the home, thermostat settings and rates.</p>'+
+      '<p class="s">Rough yearly estimate for an average year. Electricity '+fmt3(S.kwh)+' per kWh, geothermal electricity '+fmt3(S.kwhG)+' per kWh, natural gas '+fmt2(S.ccf)+' per Ccf, propane '+fmt2(S.prop)+' per gallon and fuel oil '+fmt2(S.oil)+' per gallon. Assumes about '+DS_EFLH_H+' hours per year of full-load heating and '+DS_EFLH_C+' of cooling (the average of NAGeo\'s past LoopLink designs), geothermal efficiency taken from the AHRI rating and raised for part-load running (5 Series about +'+Math.round((DS_SEAS["5"][0]-1)*100)+'% heating and +'+Math.round((DS_SEAS["5"][1]-1)*100)+'% cooling, 7 Series about +'+Math.round((DS_SEAS["7"][0]-1)*100)+'% and +'+Math.round((DS_SEAS["7"][1]-1)*100)+'%), a 3% allowance for the loop pump, a central air conditioner at SEER '+S.acSeer+', an air-source heat pump at HSPF '+S.hspf+' and SEER '+S.seer+', furnaces at AFUE '+S.afueG+'% (gas), '+S.afueP+'% (propane) and '+S.afueO+'% (oil), and an old geothermal system at COP '+S.oldCop+' and EER '+S.oldEer+'. Real use depends on the home, thermostat settings and rates.</p>'+
       '<p class="s">Geothermal use: about '+N(rc.kwhH)+' kWh for heating and '+N(rc.kwhC)+' kWh for cooling per year.</p>';
-    co2=chartCo2(rc)+'<p class="s">Yearly carbon dioxide from the energy each system uses, in pounds. Rough factors: electricity '+CO2_KWH+' lb per kWh (regional grid average, so it changes with how the grid is powered), natural gas '+CO2_THERM+' lb per therm, propane '+CO2_PROP+' lb per gallon, fuel oil '+CO2_OIL+' lb per gallon.</p>';
+    co2=chartCo2(rc)+'<p class="s">Yearly carbon dioxide from the energy each system uses, in pounds. Rough factors: electricity '+CO2_KWH+' lb per kWh (EPA eGRID2023 average for northern Virginia and the Maryland suburbs; it changes as the grid changes), natural gas '+CO2_THERM+' lb per therm, propane '+CO2_PROP+' lb per gallon, fuel oil '+CO2_OIL+' lb per gallon.</p>';
   }
   var css='@page{size:letter;margin:.6in}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0}.hd{border-bottom:4px solid #0B5D5A;padding-bottom:10px;margin-bottom:14px}.co{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#555}h1{font-size:25px;margin:2px 0 0}'+
     'h2{font-size:15px;margin:18px 0 6px;color:#0B5D5A;border-bottom:1px solid #bbb;padding-bottom:3px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:8px}.meta div{border-bottom:1px solid #bbb;padding:3px 0}.meta span{color:#666;font-size:11px;text-transform:uppercase;margin-right:6px}'+

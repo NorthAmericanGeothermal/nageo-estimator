@@ -1807,8 +1807,20 @@ function evalValues(curKey){
     if(cur){ v.currentName={t:"text",v:cur.name}; v.currentCost={t:"$",v:cur.h+cur.c}; v.savings={t:"$",v:(cur.h+cur.c)-(geo.h+geo.c)}; v.savings20={t:"$",v:20*((cur.h+cur.c)-(geo.h+geo.c))}; }
   }
   var gr=grecRun(rows,t);
-  if(gr){ v.grecValue={t:"$",v:gr.out.headline.value}; var g0=gr.out.rows[0]; if(g0) v.grecs={t:"num",v:g0.value}; v.grecPrice={t:"$",v:st.state==="MD"?S.grecMD:S.grecVA}; }
+  var as=evalState($("f-addr").value), stt=as||st.state, gp=stt==="MD"?S.grecMD:S.grecVA;   // the GREC price follows the state in the customer's address (the state picked on this page if the address has none)
+  if(gr){ var g0=gr.out.rows[0]; if(g0){ v.grecs={t:"num",v:g0.value}; v.grecValue={t:"$",v:g0.value*gp}; v.grecPrice={t:"$",v:gp}; } }
   return {v:v,rc:rc,cur:cur};
+}
+function evalState(addr){ addr=addr||""; var md=/(^|[\s,.])(MD|Maryland)([\s,.]|$)/i.test(addr), va=/(^|[\s,.])(VA|Virginia)([\s,.]|$)/i.test(addr); return md&&!va?"MD":(va&&!md?"VA":""); }
+function evalMissing(ev){
+  var m=[], v=ev.v;
+  if(!v.projectId.v) m.push("Customer ID");
+  if(!v.address.v) m.push("Address (also decides whether the Maryland or Virginia GREC price is used)");
+  else if(!evalState(v.address.v)) m.push("A state (VA or MD) in the address, so the GREC price used is the one picked at the top of this page ("+st.state+")");
+  else if(st.state&&evalState(v.address.v)!==st.state) m.push("The address says "+evalState(v.address.v)+" but this page is set to "+st.state+". The GREC price follows the address; the lease and price list follow the page");
+  if(!v.grecs) m.push("GREC estimate (county, square feet and heat pump model in the GREC card)");
+  if(!v.currentCost) m.push("Yearly costs and savings (loads and a unit for each area in the System Design tab)");
+  return m;
 }
 function evalFmt(item,f){   // format one value to suit the template box (currency boxes get plain numbers, text boxes get $ text)
   if(item.t==="date"){ if(f.type==="date") return item.v; return new Date(item.v+"T00:00:00").toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}); }
@@ -1826,9 +1838,11 @@ function evalOpen(){
     if(!EVAL_TPL.length){ box.innerHTML='<div class="hh">Send to Evaluation</div><div class="hn">No templates yet. Make one on the Evaluations site first.</div>'; return; }
     var ev=evalValues(); var curOpts="";
     if(ev&&ev.rc){ ev.rc.rows.slice(1).forEach(function(r){ curOpts+='<option value="'+r.key+'"'+(ev.cur&&ev.cur.key===r.key?' selected':'')+'>'+esc(r.name)+'</option>'; }); }
-    box.innerHTML='<div class="hh">Send to Evaluation</div><div class="hn"><label class="lbl" for="eval-tpl">Which template?</label><select id="eval-tpl">'+EVAL_TPL.map(function(t){return '<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>';}).join("")+'</select></div>'+
+    var miss=ev?evalMissing(ev):[];
+    var warn=miss.length?'<div class="hn" style="background:#FFF4D6;color:#5C4300;border-left:5px solid #E0A100"><b>Heads up. Check these first. Anything not filled in leaves its boxes on the evaluation empty:</b><ul style="margin:6px 0 0 18px;padding:0">'+miss.map(function(x){return '<li>'+esc(x)+'</li>';}).join("")+'</ul><div style="margin-top:6px">Fill them in here first, then press Send to Evaluation again, or create it anyway and fill them in by hand on the evaluation.</div></div>':'';
+    box.innerHTML='<div class="hh">Send to Evaluation</div>'+warn+'<div class="hn"><label class="lbl" for="eval-tpl">Which template?</label><select id="eval-tpl">'+EVAL_TPL.map(function(t){return '<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>';}).join("")+'</select></div>'+
       (curOpts?'<div class="hn"><label class="lbl" for="eval-cur">Customer\'s current system (for the savings boxes)</label><select id="eval-cur">'+curOpts+'</select></div>':'<div class="hn ls">Yearly cost and savings boxes stay empty until the System Design tab has loads and a unit for each area.</div>')+
-      '<div class="hn"><button type="button" class="btn" id="btn-eval-send">Create the evaluation</button> <button type="button" class="linkbtn" id="btn-eval-close">Cancel</button><div id="eval-msg" class="ls" style="margin-top:8px"></div></div>';
+      '<div class="hn"><button type="button" class="btn" id="btn-eval-send">'+(miss.length?'Create it anyway':'Create the evaluation')+'</button> <button type="button" class="linkbtn" id="btn-eval-close">Cancel</button><div id="eval-msg" class="ls" style="margin-top:8px"></div></div>';
   });
 }
 function evalSend(){

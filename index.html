@@ -468,7 +468,9 @@
           <button type="button" class="btn ghost" id="btn-save-new" hidden>Save as a new copy</button>
           <button type="button" class="btn" id="btn-sheet" disabled>Print one-page sheet</button>
           <button type="button" class="btn" id="btn-customer" disabled>Print customer summary</button>
+          <button type="button" class="btn" id="btn-eval" disabled>Send to Evaluation</button>
         </div>
+        <div id="eval-box" class="hcpbox" hidden></div>
         <div class="actions">
           <button type="button" class="btn ghost" id="btn-prices">Print price sheet</button>
           <button type="button" class="btn ghost" id="btn-prices-m">Price sheet with model numbers</button>
@@ -970,7 +972,7 @@ function renderEstimate(){
   renderLease(rows.length?t.total:0);
   renderGrec(rows,t);
   renderSizing(rows);
-  $("btn-save").disabled=!rows.length; $("btn-customer").disabled=!rows.length; $("btn-design").disabled=!rows.length;
+  $("btn-eval").disabled=!rows.length; $("btn-save").disabled=!rows.length; $("btn-customer").disabled=!rows.length; $("btn-design").disabled=!rows.length;
   $("btn-save").textContent=st.savedId?"Update saved estimate":"Save estimate";
   $("btn-save-new").hidden=!st.savedId;
 }
@@ -1087,6 +1089,9 @@ document.addEventListener("click",function(e){
   if(t.id==="btn-sheet"){makeSheet();return;}
   if(t.id==="btn-customer"){makeCustomerSheet();return;}
   if(t.id==="btn-design"){makeDesignSheet();return;}
+  if(t.id==="btn-eval"){evalOpen();return;}
+  if(t.id==="btn-eval-send"){evalSend();return;}
+  if(t.id==="btn-eval-close"){$("eval-box").hidden=true;return;}
   if(t.id==="btn-signin"){signIn();return;}
   if(t.id==="btn-signout"){signOut();return;}
   if(t.id==="btn-move"){moveLocal();return;}
@@ -1197,7 +1202,7 @@ function makeSheet(){
     lrow('Monthly payment',function(o){return '<b>'+money0(o.L.mo.typ)+'</b><div class="s">'+money0(o.L.mo.low)+' to '+money0(o.L.mo.high)+'</div>';})+
     lrow('Month 60: 5 years of payments paid (60 &times; '+money0(opts[0].L.mo.typ)+')',function(o){return money0(60*o.L.mo.typ);})+lrow('Month 60 buyout (start of year 6)',function(o){return money0(o.L.b6.typ);})+lrow('<b>Total paid if bought out at month 60</b>',function(o){return '<b>'+money0(o.dep+60*o.L.mo.typ+o.L.b6.typ)+'</b>';})+
     lrow('Month 132: 11 years of payments paid (132 payments)',function(o){return money0(132*o.L.mo.typ);})+lrow('Month 132 buyout (start of year 12)',function(o){return money0(o.L.b12.typ);})+lrow('<b>Total paid if bought out at month 132</b>',function(o){return '<b>'+money0(o.dep+132*o.L.mo.typ+o.L.b12.typ)+'</b>';})+
-    '</tbody></table></div>';
+    '</tbody></table><div class="s" style="margin-top:4px">Total paid includes the '+money0(nd)+' NAGeo deposit and any upfront on the lease, plus the monthly payments made and the buyout.</div></div>';
   var html='<!doctype html><html><head><meta charset="utf-8"><title>NAGeo Estimate Sheet</title><style>'+
     '@page{size:letter;margin:.5in}*{box-sizing:border-box}body{font:12px/1.35 Arial,Helvetica,sans-serif;color:#111;margin:0}'+
     'h1{font-size:20px;margin:0}h3{font-size:13px;margin:0 0 6px}.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0B5D5A;padding-bottom:8px;margin-bottom:10px}'+
@@ -1769,6 +1774,83 @@ function profileChart(d){
   return chartBox("Load and operating profile: "+esc(d.a.name),"Hours at each outdoor temperature (bars) with the load lines and the heat pump's capacity (right scale).",
     legend([["Heat pump heating",colors.heat],["Backup heat needed",colors.sup],["Heat pump cooling",colors.cool],["Beyond cooling capacity",colors.bey],["No heating or cooling",colors.idle]])+lineLegend()+o,note);
 }
+
+/* ---------- send to the Evaluations site ---------- */
+var EVAL_URL="https://northamericangeothermal.github.io/nageo-evaluations/";   // the Evaluations site; change here if it lives at another address
+var EVAL_TPL=[];
+// A template box with no "Use for" tag is matched by its key instead (the key is the box's label with the first word lower case, e.g. "Monthly Lease Payment" is monthlyLeasePayment).
+var EVAL_KEYS={preparedfor:"name",customername:"name",name:"name",projectid:"projectId",customerid:"projectId",proposaldate:"date",date:"date",address:"address",phone:"phone",email:"email",
+  currentannualcost:"currentCost",newannualcost:"geoCost",annualenergysavings:"savings","20yearprojectedsavings":"savings20",
+  monthlyleasepayment:"monthly",fullsystemvalue:"total",paymentsover6years:"paid60",estimatedbuyoutyear6:"buyout60",totalleaseinvestment:"total60",totalsavings:"leaseSavings",
+  paymentsover12years:"paid132",estimatedbuyoutyear12:"buyout132",totalleaseinvestment12:"total132",
+  grecscore:"grecs",grecvalue:"grecPrice",annualgrecvalue:"grecValue"};
+function evalRole(f){ return f.role||EVAL_KEYS[String(f.key||"").toLowerCase()]||""; }
+// Everything the Evaluations site can fill from this estimate. Each template box is tagged with one of these in the Template Editor ("Use for").
+function evalValues(curKey){
+  var rows=priced(); if(!rows.length) return null;
+  var t=totals(rows), lc=leaseCost(t.total), nd=ngDep(t.total), up=upfrontAmt(lc), L=leaseFor(lc,up), dep=nd+up, mo=L.mo.typ;
+  var today=new Date(), v={};
+  v.name={t:"text",v:$("f-cust").value.trim()}; v.address={t:"text",v:$("f-addr").value.trim()};
+  v.projectId={t:"text",v:$("f-pid").value.trim()}; v.phone={t:"text",v:$("f-phone").value.trim()}; v.email={t:"text",v:$("f-email").value.trim()};
+  v.date={t:"date",v:today.toISOString().slice(0,10)};
+  v.system={t:"text",v:rows.map(function(r){return optName(r.o)+(r.model?" ("+r.model+")":"");}).join("; ")};
+  v.tons={t:"num",v:rows.reduce(function(a,r){return a+r.o.tons;},0)};
+  v.total={t:"$",v:t.total}; v.deposit={t:"$",v:nd}; v.monthly={t:"$",v:mo};
+  v.paid60={t:"$",v:dep+60*mo}; v.buyout60={t:"$",v:L.b6.typ}; v.total60={t:"$",v:dep+60*mo+L.b6.typ};
+  v.leaseSavings={t:"$",v:t.total-(dep+60*mo+L.b6.typ)};
+  v.paid132={t:"$",v:dep+132*mo}; v.buyout132={t:"$",v:L.b12.typ}; v.total132={t:"$",v:dep+132*mo+L.b12.typ};
+  var z=szS(), list=z.areas.map(function(a){return dsArea(a,z,z.areas.length===1);}).filter(Boolean), rc=(list.length&&z.mode!=="sqft")?dsRunCost(list):null, cur=null;
+  if(rc){
+    var geo=rc.rows[0], others=rc.rows.slice(1);
+    cur=others.filter(function(r){return r.key===curKey;})[0]||others[0]||null;
+    v.geoCost={t:"$",v:geo.h+geo.c};
+    if(cur){ v.currentName={t:"text",v:cur.name}; v.currentCost={t:"$",v:cur.h+cur.c}; v.savings={t:"$",v:(cur.h+cur.c)-(geo.h+geo.c)}; v.savings20={t:"$",v:20*((cur.h+cur.c)-(geo.h+geo.c))}; }
+  }
+  var gr=grecRun(rows,t);
+  if(gr){ v.grecValue={t:"$",v:gr.out.headline.value}; var g0=gr.out.rows[0]; if(g0) v.grecs={t:"num",v:g0.value}; v.grecPrice={t:"$",v:st.state==="MD"?S.grecMD:S.grecVA}; }
+  return {v:v,rc:rc,cur:cur};
+}
+function evalFmt(item,f){   // format one value to suit the template box (currency boxes get plain numbers, text boxes get $ text)
+  if(item.t==="date"){ if(f.type==="date") return item.v; return new Date(item.v+"T00:00:00").toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}); }
+  if(item.t==="$"){ var n=Math.round(item.v); return f.type==="currency"||f.type==="number"?String(n):(n<0?"-":"")+money0(Math.abs(n)); }
+  if(item.t==="num"){ var m=Math.round(item.v*100)/100; return String(m); }
+  return item.v;
+}
+function evalOpen(){
+  var box=$("eval-box"); box.hidden=false;
+  if(!sb){ box.innerHTML='<div class="hn">The Evaluations link needs the cloud connection, which is not available right now.</div>'; return; }
+  box.innerHTML='<div class="hh">Send to Evaluation</div><div class="hn">Loading templates…</div>';
+  sb.from("templates").select("id,name,fields,archived_at").is("archived_at",null).order("name").then(function(r){
+    if(r.error){ box.innerHTML='<div class="hh">Send to Evaluation</div><div class="hn">Could not load the templates: '+esc(r.error.message)+'</div>'; return; }
+    EVAL_TPL=r.data||[];
+    if(!EVAL_TPL.length){ box.innerHTML='<div class="hh">Send to Evaluation</div><div class="hn">No templates yet. Make one on the Evaluations site first.</div>'; return; }
+    var ev=evalValues(); var curOpts="";
+    if(ev&&ev.rc){ ev.rc.rows.slice(1).forEach(function(r){ curOpts+='<option value="'+r.key+'"'+(ev.cur&&ev.cur.key===r.key?' selected':'')+'>'+esc(r.name)+'</option>'; }); }
+    box.innerHTML='<div class="hh">Send to Evaluation</div><div class="hn"><label class="lbl" for="eval-tpl">Which template?</label><select id="eval-tpl">'+EVAL_TPL.map(function(t){return '<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>';}).join("")+'</select></div>'+
+      (curOpts?'<div class="hn"><label class="lbl" for="eval-cur">Customer\'s current system (for the savings boxes)</label><select id="eval-cur">'+curOpts+'</select></div>':'<div class="hn ls">Yearly cost and savings boxes stay empty until the System Design tab has loads and a unit for each area.</div>')+
+      '<div class="hn"><button type="button" class="btn" id="btn-eval-send">Create the evaluation</button> <button type="button" class="linkbtn" id="btn-eval-close">Cancel</button><div id="eval-msg" class="ls" style="margin-top:8px"></div></div>';
+  });
+}
+function evalSend(){
+  var tid=$("eval-tpl").value, tpl=EVAL_TPL.filter(function(t){return String(t.id)===String(tid);})[0], msg=$("eval-msg");
+  if(!tpl) return;
+  var cs=$("eval-cur"), ev=evalValues(cs?cs.value:null); if(!ev) return;
+  var name=ev.v.name.v; if(!name){ msg.textContent="Type the customer name above first."; return; }
+  var fields={}, filled=0, empty=[];
+  (tpl.fields||[]).forEach(function(f){
+    var role=evalRole(f);
+    if(!role||f.type==="cover") return;
+    var item=ev.v[role];
+    if(!item||item.v===""||item.v==null){ empty.push(f.label||f.key); return; }
+    fields[f.key]=evalFmt(item,f); filled++;
+  });
+  $("btn-eval-send").disabled=true; msg.textContent="Creating…";
+  sb.from("evaluations").insert({template_id:tpl.id,customer_name:name,customer_number:ev.v.projectId.v,fields:fields,created_by:"Selling Tool"}).select("id").single().then(function(r){
+    $("btn-eval-send").disabled=false;
+    if(r.error){ msg.textContent="Could not create it: "+r.error.message; return; }
+    msg.innerHTML='Done. '+filled+' box'+(filled===1?'':'es')+' filled in'+(empty.length?'; left empty (nothing to put there yet): '+esc(empty.join(", ")):'')+'. <a href="'+EVAL_URL+'?open='+encodeURIComponent(r.data.id)+'" target="_blank" rel="noopener"><b>Open it in Evaluations</b></a>';
+  });
+}
 function makeDesignSheet(){
   var rows=priced(); if(!rows.length) return;
   var z=szS(), one=z.areas.length===1;
@@ -1827,7 +1909,7 @@ function makeDesignSheet(){
 }
 function makeCustomerSheet(){
   var rows=priced(); if(!rows.length) return;
-  var t=totals(rows), lc=leaseCost(t.total), nd=ngDep(t.total), up=upfrontAmt(lc), L=leaseFor(lc,up), gr=grecRun(rows,t);
+  var t=totals(rows), lc=leaseCost(t.total), nd=ngDep(t.total), up=upfrontAmt(lc), L=leaseFor(lc,up), dep=nd+up, gr=grecRun(rows,t);
   var cust=$("f-cust").value.trim(), addr=$("f-addr").value.trim(), pid=$("f-pid").value.trim();
   var today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
   var items=rows.map(function(r){
@@ -1835,7 +1917,12 @@ function makeCustomerSheet(){
   }).join("")+((t.addons!==0||t.md>0)?'<tr><td><b>Equipment and installation subtotal</b></td><td class="r"><b>'+money(t.units)+'</b></td></tr>':'')+addonRows().map(function(a){return '<tr><td><b>'+esc(a.name)+'</b></td><td class="r">'+money(a.price)+'</td></tr>';}).join("")+
     (t.md>0?'<tr><td><b>Maryland install</b></td><td class="r">'+money(t.md)+'</td></tr>':'');
   var leaseBox='<div class="box"><h3>Lease option</h3><p>Through Upstream Lease, 20 years. Estimated payment about <b>'+money0(L.mo.typ)+' per month</b> (likely between '+money0(L.mo.low)+' and '+money0(L.mo.high)+'), plus sales tax'+(up>0?', with '+money0(up)+' paid upfront on the lease':', with nothing upfront on the lease')+'. The lease covers '+money0(lc)+', which is the job total less the '+money0(nd)+' deposit paid to North American Geothermal at signing.</p>'+
-    '<p>If you choose to buy out the lease, the estimated buyout is about '+money0(L.b6.typ)+' after 60 monthly payments (5 years, '+money0(60*L.mo.typ)+' paid in payments, the start of year 6) or about '+money0(L.b12.typ)+' after 132 monthly payments (11 years, '+money0(132*L.mo.typ)+' paid in payments, the start of year 12).</p></div>';
+    '<p>If you choose to buy out the lease, here is what you would have paid in total. The '+money0(nd)+' deposit paid to North American Geothermal at signing is included in every total.</p>'+
+    '<table class="kv"><tr><td></td><td class="r"><b>Buyout at month 60</b><div class="s">(start of year 6)</div></td><td class="r"><b>Buyout at month 132</b><div class="s">(start of year 12)</div></td></tr>'+
+    '<tr><td>Deposit and any upfront payment</td><td class="r">'+money0(dep)+'</td><td class="r">'+money0(dep)+'</td></tr>'+
+    '<tr><td>Monthly payments paid</td><td class="r">'+money0(60*L.mo.typ)+'<div class="s">60 payments</div></td><td class="r">'+money0(132*L.mo.typ)+'<div class="s">132 payments</div></td></tr>'+
+    '<tr><td>Estimated buyout</td><td class="r">'+money0(L.b6.typ)+'</td><td class="r">'+money0(L.b12.typ)+'</td></tr>'+
+    '<tr><td><b>Total paid</b></td><td class="r"><b>'+money0(dep+60*L.mo.typ+L.b6.typ)+'</b></td><td class="r"><b>'+money0(dep+132*L.mo.typ+L.b12.typ)+'</b></td></tr></table></div>';
   var grecBox='';
   if(gr){
     var o=gr.out, c=o.calc, mdl=c.fleet.map(function(f){return f.q+" x WaterFurnace "+f.m.key;}).join(", ");

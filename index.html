@@ -1230,7 +1230,10 @@ function openDoc(html,filename,okMsg){
   var msg=$("msg"), w=null;
   try{w=window.open("","_blank");}catch(err){w=null;}
   if(w){
-    w.document.open(); w.document.write(html); w.document.close();
+    // Fill the new window without document.open(): that call would give it this page's web address, which the browser can print in the page header or footer. Left alone it stays "about:blank".
+    var inner=html.replace(/^\s*<!doctype html>/i,"").replace(/<script[\s\S]*?<\/script>/gi,"");
+    w.document.documentElement.innerHTML=inner;
+    w.setTimeout(function(){w.focus();w.print();},600);
     msg.textContent=okMsg;
   } else {
     var a=document.createElement("a");
